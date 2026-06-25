@@ -1,4 +1,4 @@
-# MARU GitHub 자동반영 패치 AI V11
+# MARU GitHub 자동반영 패치 AI V11.1
 
 패치된 ZIP을 사람이 다시 경마앱 저장소에 올리는 단계를 자동화한 버전입니다.
 
@@ -36,3 +36,8 @@ Streamlit Cloud:
 ```text
 Main file path: app.py
 ```
+
+
+## V11.1 수정
+
+- `zip_bytes` 누락으로 버전 탭에서 발생하던 NameError 수정

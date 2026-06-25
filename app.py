@@ -13,7 +13,7 @@ STORE.mkdir(exist_ok=True)
 VERS.mkdir(exist_ok=True)
 
 DEFAULT = {
-    "version": "11.0-github-auto-deploy",
+    "version": "11.1-github-auto-deploy-fix",
     "projects": {},
     "patch_records": [],
     "github_deploys": [],
@@ -305,7 +305,7 @@ with st.expander('📦 현재 앱 ZIP 다운로드'):
     if top:
         txt = txt.replace("import streamlit as st", "import streamlit as st\n" + "\n".join(top), 1) if "import streamlit as st" in txt else "import streamlit as st\n" + "\n".join(top) + "\n" + txt
     if bottom:
-        txt += "\n\n# ===== MARU V11 PATCH ADDONS =====\n" + "\n".join(bottom)
+        txt += "\n\n# ===== MARU V11.1 PATCH ADDONS =====\n" + "\n".join(bottom)
     write(app_path, txt)
 
 def add_helpers(src, approved):
@@ -322,6 +322,17 @@ def make_zip(src, name, ver):
             if "__pycache__" not in p.parts and ".git" not in p.parts and p.is_file():
                 z.write(p, p.relative_to(src))
     return out
+
+
+def zip_bytes(src):
+    buf = io.BytesIO()
+    src = Path(src)
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for p in src.rglob("*"):
+            if "__pycache__" in p.parts or ".git" in p.parts or not p.is_file():
+                continue
+            z.write(p, p.relative_to(src))
+    return buf.getvalue()
 
 def gh_headers(token):
     return {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
@@ -386,9 +397,9 @@ jobs:
 """
 
 m = load()
-st.set_page_config(page_title="MARU GitHub 자동반영 패치 AI V11", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU GitHub 자동반영 패치 AI V11.1.1", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU GitHub 자동반영 패치 AI V11")
+st.title("🧠 MARU GitHub 자동반영 패치 AI V11.1.1")
 st.caption("패치 후 경마앱/토토앱 GitHub 저장소에 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 
