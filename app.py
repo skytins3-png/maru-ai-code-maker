@@ -13,7 +13,7 @@ STORE.mkdir(exist_ok=True)
 VERS.mkdir(exist_ok=True)
 
 DEFAULT = {
-    "version": "11.1-github-auto-deploy-fix",
+    "version": "11.2-registration-fix",
     "projects": {},
     "patch_records": [],
     "github_deploys": [],
@@ -62,6 +62,24 @@ def save(m):
 
 def sname(x):
     return re.sub(r"[^a-zA-Z0-9가-힣_.-]+", "_", str(x))[:80] or "project"
+
+
+def infer_project_name(name, app_url="", uploaded=None):
+    raw = (name or "").strip()
+    if raw:
+        return raw
+    if app_url:
+        m = re.search(r"https?://([^./]+)", app_url)
+        if m:
+            return m.group(1).strip()
+    if uploaded is not None:
+        base = Path(uploaded.name).stem
+        base = re.sub(r"\s*\(\d+\)$", "", base)
+        base = base.replace("_UPLOAD", "").replace("_upload", "")
+        if base:
+            return sname(base)
+    return "maru-kra-final-clean"
+
 
 def read(p):
     for enc in ("utf-8", "cp949", "euc-kr"):
@@ -305,7 +323,7 @@ with st.expander('📦 현재 앱 ZIP 다운로드'):
     if top:
         txt = txt.replace("import streamlit as st", "import streamlit as st\n" + "\n".join(top), 1) if "import streamlit as st" in txt else "import streamlit as st\n" + "\n".join(top) + "\n" + txt
     if bottom:
-        txt += "\n\n# ===== MARU V11.1 PATCH ADDONS =====\n" + "\n".join(bottom)
+        txt += "\n\n# ===== MARU V11.2 PATCH ADDONS =====\n" + "\n".join(bottom)
     write(app_path, txt)
 
 def add_helpers(src, approved):
@@ -397,9 +415,9 @@ jobs:
 """
 
 m = load()
-st.set_page_config(page_title="MARU GitHub 자동반영 패치 AI V11.1.1", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU GitHub 자동반영 패치 AI V11.2.1", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU GitHub 자동반영 패치 AI V11.1.1")
+st.title("🧠 MARU GitHub 자동반영 패치 AI V11.2.1")
 st.caption("패치 후 경마앱/토토앱 GitHub 저장소에 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 
@@ -410,20 +428,22 @@ with tabs[0]:
     st.warning("GitHub 자동반영은 GitHub 토큰이 필요합니다. 토큰은 공개 저장소에 절대 올리지 마세요.")
 
 with tabs[1]:
-    name = st.text_input("프로젝트 이름", placeholder="maru-kra-final-clean")
-    app_url = st.text_input("배포 앱 주소", placeholder="https://maru-kra-final-clean.streamlit.app")
+    name = st.text_input("프로젝트 이름", value=st.session_state.get("maru_project_name", ""), placeholder="maru-kra-final-clean", key="maru_project_name")
+    app_url = st.text_input("배포 앱 주소", value=st.session_state.get("maru_app_url", ""), placeholder="https://maru-kra-final-clean.streamlit.app", key="maru_app_url")
     api_key = st.text_input("API KEY/TOKEN 선택", type="password")
     api_urls = st.text_area("API URL 목록 - 한 줄에 하나")
     up = st.file_uploader("ZIP 또는 app.py", type=["zip","py"])
     if st.button("저장 + 자동검사", type="primary", use_container_width=True):
-        if not name.strip(): st.warning("프로젝트 이름 필요")
-        elif not up and name.strip() not in m["projects"]: st.warning("처음 등록은 ZIP 또는 app.py 필요")
+        pname = infer_project_name(name, app_url, up)
+        st.session_state["maru_project_name"] = pname
+        if not up and pname not in m["projects"]:
+            st.warning("처음 등록은 ZIP 또는 app.py 필요")
         else:
-            old = m["projects"].get(name.strip(), {})
-            src = unzip_upload(up, name.strip()) if up else Path(old["src"])
+            old = m["projects"].get(pname, {})
+            src = unzip_upload(up, pname) if up else Path(old["src"])
             app_path = find_app(src)
             info = {
-                "name": name.strip(), "src": str(src), "app_file": str(app_path) if app_path else "",
+                "name": pname, "src": str(src), "app_file": str(app_path) if app_path else "",
                 "app_url": app_url.strip() or old.get("app_url",""),
                 "api_key": api_key or old.get("api_key",""),
                 "api_urls": [x.strip() for x in api_urls.splitlines() if x.strip()] or old.get("api_urls", []),
@@ -431,10 +451,10 @@ with tabs[1]:
                 "github": old.get("github", {}),
                 "scan": scan(src), "syntax": syntax_all(src), "errors": inspect_error_files(src), "analysis": analyze_app(app_path)
             }
-            m["projects"][name.strip()] = info
-            m["file_checks"].append({"time": datetime.now().isoformat(timespec="seconds"), "project": name.strip(), "scan": info["scan"]})
+            m["projects"][pname] = info
+            m["file_checks"].append({"time": datetime.now().isoformat(timespec="seconds"), "project": pname, "scan": info["scan"]})
             save(m)
-            st.success("등록/검사 완료")
+            st.success(f"등록/검사 완료: {pname}")
             st.json(info["scan"]); st.json(info["analysis"])
 
 with tabs[2]:
