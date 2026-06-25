@@ -1,17 +1,9 @@
 {
-  "version": "10.0-no-voice-real-patch",
+  "version": "11.0-github-auto-deploy",
   "projects": {},
+  "patch_records": [],
+  "github_deploys": [],
+  "test_records": [],
   "file_checks": [],
-  "monitor_records": [],
-  "repeat_tests": [],
-  "log_analyses": [],
-  "approved_upgrades": [],
-  "failed_upgrades": [],
-  "generated_projects": [],
-  "lessons": [],
-  "google_sheets": {
-    "enabled": false,
-    "sheet_id": "",
-    "service_account_json": ""
-  }
+  "lessons": []
 }

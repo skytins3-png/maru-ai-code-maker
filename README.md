@@ -1,32 +1,38 @@
-# MARU V10 무음성 최종 통합 실제 패치 AI
+# MARU GitHub 자동반영 패치 AI V11
 
-음성지시/OpenAI API 키/요금 발생 요소를 제거하고, 오늘 대화한 기능을 한 파일 `app.py` 중심으로 통합했습니다.
+패치된 ZIP을 사람이 다시 경마앱 저장소에 올리는 단계를 자동화한 버전입니다.
 
-## 핵심
-- ZIP 자동 압축해제
-- 파일 목록 검사
-- 오류 파일 검사
-- 문법 검사
-- 기존 기능 분석
-- 자동 모니터
-- 반복 자동테스트
-- 로그 분석
-- 개선안 추천
-- 승인/미승인/추가지시
-- 승인 항목 실제 패치
-- app.py 실제 수정
-- helper 파일 실제 추가
-- 새 버전 ZIP 생성
-- 구글시트 저장
-- GitHub Actions 예약 테스트
-- 자동구매/자동결제 차단
-- 음성지시 제거
-- OpenAI API 키 제거
+## 핵심 흐름
+
+```text
+경마앱/토토앱 ZIP 등록
+→ 자동 압축해제
+→ 파일/오류 검사
+→ 자동테스트
+→ 개선안 추천
+→ 승인한 항목 실제 패치
+→ 새 ZIP 생성
+→ GitHub 대상 저장소에 자동 업로드/커밋
+→ Streamlit Cloud 자동 재배포
+```
+
+## GitHub 자동반영에 필요한 것
+
+GitHub 토큰이 필요합니다.
+
+권한:
+- 대상 저장소 접근
+- Contents: Read and write
 
 ## 실행
+
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Streamlit Cloud Main file path: `app.py`
+Streamlit Cloud:
+
+```text
+Main file path: app.py
+```
