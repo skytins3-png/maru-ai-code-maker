@@ -13,7 +13,7 @@ STORE.mkdir(exist_ok=True)
 VERS.mkdir(exist_ok=True)
 
 DEFAULT = {
-    "version": "11.2-registration-fix",
+    "version": "11.3-session-state-fix",
     "projects": {},
     "patch_records": [],
     "github_deploys": [],
@@ -323,7 +323,7 @@ with st.expander('📦 현재 앱 ZIP 다운로드'):
     if top:
         txt = txt.replace("import streamlit as st", "import streamlit as st\n" + "\n".join(top), 1) if "import streamlit as st" in txt else "import streamlit as st\n" + "\n".join(top) + "\n" + txt
     if bottom:
-        txt += "\n\n# ===== MARU V11.2 PATCH ADDONS =====\n" + "\n".join(bottom)
+        txt += "\n\n# ===== MARU V11.3 PATCH ADDONS =====\n" + "\n".join(bottom)
     write(app_path, txt)
 
 def add_helpers(src, approved):
@@ -415,9 +415,9 @@ jobs:
 """
 
 m = load()
-st.set_page_config(page_title="MARU GitHub 자동반영 패치 AI V11.2.1", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU GitHub 자동반영 패치 AI V11.3.1", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU GitHub 자동반영 패치 AI V11.2.1")
+st.title("🧠 MARU GitHub 자동반영 패치 AI V11.3.1")
 st.caption("패치 후 경마앱/토토앱 GitHub 저장소에 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 
@@ -428,14 +428,13 @@ with tabs[0]:
     st.warning("GitHub 자동반영은 GitHub 토큰이 필요합니다. 토큰은 공개 저장소에 절대 올리지 마세요.")
 
 with tabs[1]:
-    name = st.text_input("프로젝트 이름", value=st.session_state.get("maru_project_name", ""), placeholder="maru-kra-final-clean", key="maru_project_name")
-    app_url = st.text_input("배포 앱 주소", value=st.session_state.get("maru_app_url", ""), placeholder="https://maru-kra-final-clean.streamlit.app", key="maru_app_url")
+    name = st.text_input("프로젝트 이름", placeholder="maru-kra-final-clean", key="maru_project_name")
+    app_url = st.text_input("배포 앱 주소", placeholder="https://maru-kra-final-clean.streamlit.app", key="maru_app_url")
     api_key = st.text_input("API KEY/TOKEN 선택", type="password")
     api_urls = st.text_area("API URL 목록 - 한 줄에 하나")
     up = st.file_uploader("ZIP 또는 app.py", type=["zip","py"])
     if st.button("저장 + 자동검사", type="primary", use_container_width=True):
         pname = infer_project_name(name, app_url, up)
-        st.session_state["maru_project_name"] = pname
         if not up and pname not in m["projects"]:
             st.warning("처음 등록은 ZIP 또는 app.py 필요")
         else:
