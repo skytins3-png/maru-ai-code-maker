@@ -225,3 +225,14 @@ TOTO_API_KEY = "토토_API_KEY"
 - 안전한 문법오류 자동수정
 - 재테스트 반복
 - 통과 시 GitHub 자동반영
+
+
+## V15.1 Streamlit 경고 제거
+
+- `use_container_width=True` → `width="stretch"` 변경
+- `use_container_width=False` → `width="content"` 변경
+- 변경 개수: True 41개, False 0개
+- V15 풀자동화 엔진 유지
+- 프로젝트 보관소 유지
+- 개선승인 / 무승인 패치루프 / 로그분석 / GitHub 자동반영 유지
+- 자동구매/자동결제 차단 유지
