@@ -1,55 +1,24 @@
-# MARU GitHub 자동반영 패치 AI V11.3.2
+# MARU V13 통합 자동화 AI
 
-패치된 ZIP을 사람이 다시 경마앱 저장소에 올리는 단계를 자동화한 버전입니다.
+오늘 대화 기준 통합본입니다. 기존 기능을 제거하지 않고 V12.3까지의 기능에 HTML 카드 코드노출 수정, 경마시간 추천없음 표시 보정 패치를 추가했습니다.
 
-## 핵심 흐름
+## 포함
+- 경마앱/토토앱 ZIP 등록
+- AI 코드생성기
+- 로그 붙여넣기/로그파일 분석
+- 사진 첨부/명령 입력
+- 구글시트 저장
+- 승인 패치
+- GitHub 자동반영
+- 모바일 사용
+- HTML agent-card 코드노출 수정 패치
+- 경마시간인데 추천 없음 표시 보정 패치
+- 자동구매/자동결제 차단
 
-```text
-경마앱/토토앱 ZIP 등록
-→ 자동 압축해제
-→ 파일/오류 검사
-→ 자동테스트
-→ 개선안 추천
-→ 승인한 항목 실제 패치
-→ 새 ZIP 생성
-→ GitHub 대상 저장소에 자동 업로드/커밋
-→ Streamlit Cloud 자동 재배포
-```
+## 올릴 파일
+app.py
+requirements.txt
+README.md
+ai_memory.json
 
-## GitHub 자동반영에 필요한 것
-
-GitHub 토큰이 필요합니다.
-
-권한:
-- 대상 저장소 접근
-- Contents: Read and write
-
-## 실행
-
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-```
-
-Streamlit Cloud:
-
-```text
-Main file path: app.py
-```
-
-
-## V11.3.2 수정
-
-- `zip_bytes` 누락으로 버전 탭에서 발생하던 NameError 수정
-
-
-## V11.3 수정
-
-- 등록 탭에서 프로젝트 이름이 입력되어 보여도 빈값으로 읽히던 문제 방어
-- 이름이 비면 앱 주소/업로드 ZIP명에서 자동 추론
-
-
-## V11.3 수정
-
-- Streamlit 입력창 key와 session_state 강제수정 충돌 제거
-- `maru_project_name` 관련 StreamlitAPIException 수정
+Streamlit Cloud Main file path: app.py
