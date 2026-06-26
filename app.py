@@ -1,5 +1,138 @@
 
 import streamlit as st
+
+# ===== MARU V13.5 missing helper hotfix =====
+def _maru_secret_get(name, default=""):
+    try:
+        value = st.secrets.get(name, default)
+        return value if value is not None else default
+    except Exception:
+        return default
+
+def secret_first(*names, default=""):
+    for name in names:
+        value = _maru_secret_get(name, "")
+        if value:
+            return value
+    return default
+
+def get_default_profile(mem_obj=None):
+    base = {
+        "project_name": "maru-kra-final-clean",
+        "app_url": "https://maru-kra-final-clean.streamlit.app",
+        "api_key": "",
+        "api_urls": "",
+        "github_owner": "skytins3-png",
+        "github_repo": "maru-kra-final-clean",
+        "github_branch": "main",
+    }
+    try:
+        if mem_obj is not None:
+            prof = mem_obj.setdefault("default_profile", {})
+            for k, v in base.items():
+                prof.setdefault(k, v)
+            return prof
+    except Exception:
+        pass
+    return base
+
+PROJECT_PRESETS = {
+    "경마앱": {
+        "project_name": "maru-kra-final-clean",
+        "app_url": "https://maru-kra-final-clean.streamlit.app",
+        "api_key": "",
+        "api_urls": "",
+        "github_owner": "skytins3-png",
+        "github_repo": "maru-kra-final-clean",
+        "github_branch": "main",
+    },
+    "토토앱": {
+        "project_name": "skytoto-ai-hub",
+        "app_url": "",
+        "api_key": "",
+        "api_urls": "",
+        "github_owner": "skytins3-png",
+        "github_repo": "skytoto-ai-hub",
+        "github_branch": "main",
+    },
+    "AI 코드 생성기": {
+        "project_name": "maru-ai-code-maker",
+        "app_url": "https://maru-ai-code-maker.streamlit.app",
+        "api_key": "",
+        "api_urls": "",
+        "github_owner": "skytins3-png",
+        "github_repo": "maru-ai-code-maker",
+        "github_branch": "main",
+    },
+    "직접입력": {
+        "project_name": "",
+        "app_url": "",
+        "api_key": "",
+        "api_urls": "",
+        "github_owner": "skytins3-png",
+        "github_repo": "",
+        "github_branch": "main",
+    },
+}
+
+def profile_from_choice(choice, mem_obj=None):
+    prof = PROJECT_PRESETS.get(choice, PROJECT_PRESETS["직접입력"]).copy()
+    if choice == "직접입력":
+        current = get_default_profile(mem_obj)
+        prof.update(current)
+        return prof
+    try:
+        current = get_default_profile(mem_obj)
+        if current.get("api_key") and not prof.get("api_key"):
+            prof["api_key"] = current.get("api_key", "")
+        if current.get("api_urls") and not prof.get("api_urls"):
+            prof["api_urls"] = current.get("api_urls", "")
+    except Exception:
+        pass
+    return prof
+
+def default_api_key_for(choice, mem_obj=None):
+    if choice == "경마앱":
+        return secret_first(
+            "KRA_API_KEY",
+            "PUBLIC_DATA_API_KEY",
+            "MARU_KRA_API_KEY",
+            default=get_default_profile(mem_obj).get("api_key", ""),
+        )
+    if choice == "토토앱":
+        return secret_first(
+            "TOTO_API_KEY",
+            "SPORTS_API_KEY",
+            "SPORTMONKS_TOKEN",
+            "MARU_TOTO_API_KEY",
+            default=get_default_profile(mem_obj).get("api_key", ""),
+        )
+    return get_default_profile(mem_obj).get("api_key", "")
+
+def default_api_urls_for(choice, mem_obj=None):
+    current = get_default_profile(mem_obj).get("api_urls", "")
+    if current:
+        return current
+    if choice == "경마앱":
+        return "\n".join([
+            "https://apis.data.go.kr/B551015/API310/raceInfo?serviceKey={serviceKey}&pageNo=1&numOfRows=100&_type=json",
+            "https://apis.data.go.kr/B551015/API310/entryInfo?serviceKey={serviceKey}&pageNo=1&numOfRows=100&_type=json",
+            "https://apis.data.go.kr/B551015/API310/horseInfo?serviceKey={serviceKey}&pageNo=1&numOfRows=100&_type=json",
+        ])
+    if choice == "토토앱":
+        return "\n".join([
+            "https://api.sportmonks.com/v3/football/fixtures/date/{today_dash}?api_token={api_key}&include=participants;league",
+            "https://api.sportmonks.com/v3/football/fixtures/between/{today_dash}/{today_dash}?api_token={api_key}&include=participants;league",
+        ])
+    return ""
+
+def get_github_token_from_secret():
+    return secret_first("GITHUB_TOKEN", "MARU_GITHUB_TOKEN", "github_token", default="")
+
+def token_for_github_input():
+    return get_github_token_from_secret()
+# ===== /MARU V13.5 missing helper hotfix =====
+
 import zipfile, json, shutil, io, re, ast, subprocess, sys, base64, time
 from pathlib import Path
 from datetime import datetime
@@ -818,9 +951,9 @@ def get_github_token_from_secret():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V13.4 통합 자동화 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V13.5 통합 자동화 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU V13.4 통합 자동화 AI")
+st.title("🧠 MARU V13.5 통합 자동화 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 

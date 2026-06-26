@@ -75,3 +75,12 @@ TOTO_API_KEY = "토토_API_KEY"
 - 기존 파일이 없으면 실패가 아니라 새 파일 생성(create)으로 처리
 - 기존 파일이 있으면 sha 기반 수정(update)
 - app.py / README.md / requirements.txt / ai_memory.json 첫 업로드 실패 문제 수정
+
+
+## V13.5 긴급 수정
+
+- `NameError: default_api_key_for` 오류 수정
+- 누락된 자동 API 키/URL 함수 상단 고정
+- 프로젝트 선택 자동변경 유지
+- GitHub 토큰/API 키 Secrets 자동불러오기 유지
+- GitHub 404 Not Found → 새 파일 생성 처리 유지
