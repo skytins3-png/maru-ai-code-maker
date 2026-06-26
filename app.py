@@ -1490,7 +1490,7 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V14.6 저장함수 안정화 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V15 풀자동화 통합 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
 st.title("🧠 MARU V14.4 KST 보관소 안정화 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
@@ -1662,10 +1662,232 @@ def maru_run_no_approval_patch_loop(mem_obj, label, repeat=3, do_github=True, gi
     return all_rows
 # ===== /MARU V14.3 no-extra-approval auto patch loop =====
 
+
+
+# ===== MARU V15 full automation repair engine =====
+def maru_read_text_safe(path):
+    path = Path(path)
+    for enc in ["utf-8", "utf-8-sig", "cp949", "euc-kr"]:
+        try:
+            return path.read_text(encoding=enc)
+        except Exception:
+            pass
+    return path.read_text(errors="ignore")
+
+def maru_write_text_safe(path, text):
+    Path(path).write_text(text, encoding="utf-8")
+
+def maru_compile_app_file(app_file):
+    try:
+        py_compile.compile(str(app_file), doraise=True)
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+def maru_ensure_required_files(src, project_name="MARU Project"):
+    src = Path(src)
+    src.mkdir(parents=True, exist_ok=True)
+    patched = []
+    req = src / "requirements.txt"
+    if not req.exists():
+        req.write_text("streamlit\npandas\nnumpy\nrequests\n", encoding="utf-8")
+        patched.append("requirements.txt 생성")
+    readme = src / "README.md"
+    if not readme.exists():
+        readme.write_text(f"# {project_name}\n\nMARU 자동화 프로젝트입니다.\n", encoding="utf-8")
+        patched.append("README.md 생성")
+    memfile = src / "ai_memory.json"
+    if not memfile.exists():
+        memfile.write_text(json.dumps({"version": "auto-created", "project": project_name}, ensure_ascii=False, indent=2), encoding="utf-8")
+        patched.append("ai_memory.json 생성")
+    return patched
+
+def maru_fix_nameerror_from_log(src, error_text):
+    app_file = Path(src) / "app.py"
+    if not app_file.exists():
+        return {"ok": False, "patched": [], "message": "app.py 없음"}
+    text = maru_read_text_safe(app_file)
+    original = text
+    patched = []
+    names = re.findall(r"name '([^']+)' is not defined", str(error_text))
+    names = list(dict.fromkeys(names))
+    insert = []
+
+    if "KST" in names and "KST = timezone(timedelta(hours=9))" not in text:
+        insert.append("try:\n    KST\nexcept NameError:\n    KST = timezone(timedelta(hours=9))")
+        patched.append("KST 자동삽입")
+
+    if "save_memory" in names and "def save_memory(" not in text:
+        insert.append("def save_memory(mem_obj):\n    try:\n        target = globals().get('MEM', None)\n        if target is None:\n            target = Path(__file__).parent / 'ai_memory.json'\n        Path(target).write_text(json.dumps(mem_obj, ensure_ascii=False, indent=2), encoding='utf-8')\n        return True\n    except Exception:\n        return False\n")
+        patched.append("save_memory 자동삽입")
+
+    if "default_api_key_for" in names and "def default_api_key_for(" not in text:
+        insert.append("def default_api_key_for(choice, mem_obj=None):\n    try:\n        if choice == '경마앱':\n            return st.secrets.get('KRA_API_KEY', st.secrets.get('PUBLIC_DATA_API_KEY', ''))\n        if choice == '토토앱':\n            return st.secrets.get('TOTO_API_KEY', st.secrets.get('SPORTMONKS_TOKEN', ''))\n    except Exception:\n        pass\n    try:\n        return mem_obj.get('default_profile', {}).get('api_key', '') if mem_obj else ''\n    except Exception:\n        return ''\n")
+        patched.append("default_api_key_for 자동삽입")
+
+    if "default_api_urls_for" in names and "def default_api_urls_for(" not in text:
+        insert.append("def default_api_urls_for(choice, mem_obj=None):\n    try:\n        cur = mem_obj.get('default_profile', {}).get('api_urls', '') if mem_obj else ''\n        if cur:\n            return cur\n    except Exception:\n        pass\n    if choice == '경마앱':\n        return '\\n'.join(['https://apis.data.go.kr/B551015/API310/raceInfo?serviceKey={serviceKey}&pageNo=1&numOfRows=100&_type=json','https://apis.data.go.kr/B551015/API310/entryInfo?serviceKey={serviceKey}&pageNo=1&numOfRows=100&_type=json','https://apis.data.go.kr/B551015/API310/horseInfo?serviceKey={serviceKey}&pageNo=1&numOfRows=100&_type=json'])\n    return ''\n")
+        patched.append("default_api_urls_for 자동삽입")
+
+    if insert:
+        if "from pathlib import Path" not in text:
+            insert.insert(0, "from pathlib import Path")
+        if "import json" not in text:
+            insert.insert(0, "import json")
+        if "KST" in names:
+            if "from datetime import" in text:
+                def dt_repl(m):
+                    parts = [p.strip() for p in m.group(1).split(",")]
+                    for x in ["datetime", "timezone", "timedelta"]:
+                        if x not in parts:
+                            parts.append(x)
+                    return "from datetime import " + ", ".join(parts)
+                text = re.sub(r"from datetime import ([^\n]+)", dt_repl, text, count=1)
+            else:
+                insert.insert(0, "from datetime import datetime, timezone, timedelta")
+        import_end = 0
+        for m in re.finditer(r"^(import .+|from .+ import .+)\n", text, flags=re.M):
+            import_end = max(import_end, m.end())
+        text = text[:import_end] + "\n# MARU V15 auto inserted helpers\n" + "\n".join(insert) + "\n# /MARU V15 auto inserted helpers\n\n" + text[import_end:]
+        try:
+            app_file.with_suffix(".py.bak_nameerror_v15").write_text(original, encoding="utf-8")
+        except Exception:
+            pass
+        maru_write_text_safe(app_file, text)
+
+    ok, err = maru_compile_app_file(app_file)
+    return {"ok": ok, "patched": patched, "message": " / ".join(patched) if patched else err}
+
+def maru_fix_common_syntax_errors(src):
+    app_file = Path(src) / "app.py"
+    if not app_file.exists():
+        return {"ok": False, "patched": [], "message": "app.py 없음"}
+    text = maru_read_text_safe(app_file)
+    original = text
+    patched = []
+    if "\t" in text:
+        text = text.replace("\t", "    ")
+        patched.append("탭 공백 변환")
+    if "<<<<<<<" in text or "=======" in text or ">>>>>>>" in text:
+        lines, skip = [], False
+        for line in text.splitlines():
+            if line.startswith("<<<<<<<"):
+                skip = True
+                patched.append("Git 충돌 마커 제거")
+                continue
+            if line.startswith("======="):
+                skip = False
+                continue
+            if line.startswith(">>>>>>>"):
+                continue
+            if not skip:
+                lines.append(line)
+        text = "\n".join(lines) + "\n"
+
+    lines = text.splitlines()
+    new_lines, changed = [], False
+    for i, line in enumerate(lines):
+        new_lines.append(line)
+        stripped = line.strip()
+        if not stripped or not stripped.endswith(":"):
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        j = i + 1
+        while j < len(lines) and not lines[j].strip():
+            j += 1
+        if j >= len(lines):
+            new_lines.append(" " * (indent + 4) + "pass")
+            changed = True
+        else:
+            next_indent = len(lines[j]) - len(lines[j].lstrip(" "))
+            if next_indent <= indent and not lines[j].strip().startswith(("#", "elif", "else", "except", "finally")):
+                new_lines.append(" " * (indent + 4) + "pass")
+                changed = True
+    if changed:
+        text = "\n".join(new_lines) + "\n"
+        patched.append("빈 블록 pass 추가")
+
+    if text != original:
+        try:
+            app_file.with_suffix(".py.bak_syntax_v15").write_text(original, encoding="utf-8")
+        except Exception:
+            pass
+        maru_write_text_safe(app_file, text)
+
+    ok, err = maru_compile_app_file(app_file)
+    return {"ok": ok, "patched": patched, "message": " / ".join(patched) if patched else err}
+
+def maru_full_auto_repair_once(mem_obj, label):
+    info, msg = maru_get_project_info_from_choice(mem_obj, label)
+    if not info:
+        return [{"step": "보관소 불러오기", "status": "실패", "detail": msg}]
+    project_name = info.get("name", MARU_PROJECT_PRESETS[label]["project_name"])
+    src = Path(info.get("src", ""))
+    rows = [{"step": "보관소 불러오기", "status": "성공", "detail": msg}]
+    file_patches = maru_ensure_required_files(src, project_name)
+    if file_patches:
+        rows.append({"step": "누락파일 보정", "status": "완료", "detail": " / ".join(file_patches)})
+    test_result = maru_run_basic_project_test(src)
+    rows.append({"step": "자동 테스트", "status": "성공" if test_result.get("ok") else "실패", "detail": json.dumps(test_result, ensure_ascii=False)})
+    if test_result.get("ok"):
+        rows.append({"step": "자동수정", "status": "불필요", "detail": "테스트 통과"})
+        return rows
+    detail = json.dumps(test_result, ensure_ascii=False)
+    namefix = maru_fix_nameerror_from_log(src, detail)
+    if namefix.get("patched"):
+        rows.append({"step": "NameError 자동수정", "status": "완료", "detail": namefix.get("message", "")})
+    syntaxfix = maru_fix_common_syntax_errors(src)
+    if syntaxfix.get("patched"):
+        rows.append({"step": "문법오류 자동수정", "status": "완료", "detail": syntaxfix.get("message", "")})
+    elif not syntaxfix.get("ok"):
+        rows.append({"step": "문법오류 자동수정", "status": "보류", "detail": syntaxfix.get("message", "")})
+    retest = maru_run_basic_project_test(src)
+    rows.append({"step": "재테스트", "status": "성공" if retest.get("ok") else "실패", "detail": json.dumps(retest, ensure_ascii=False)})
+    return rows
+
+def maru_full_auto_loop(mem_obj, label, repeat=5, do_github=True, github_token="", commit_msg="MARU full auto repair"):
+    all_rows = []
+    final_ok = False
+    for n in range(int(repeat)):
+        rows = maru_full_auto_repair_once(mem_obj, label)
+        for r in rows:
+            r["round"] = n + 1
+            all_rows.append(r)
+        if rows and rows[-1].get("status") in ["성공", "불필요"]:
+            final_ok = True
+            break
+        applied = any(r.get("status") == "완료" and ("자동수정" in r.get("step","") or r.get("step") == "누락파일 보정") for r in rows)
+        if not applied:
+            break
+    info, msg = maru_get_project_info_from_choice(mem_obj, label)
+    if final_ok and do_github and info:
+        project_name = info.get("name", MARU_PROJECT_PRESETS[label]["project_name"])
+        src = Path(info.get("src", ""))
+        gh = info.get("github", {})
+        owner = gh.get("owner", "skytins3-png")
+        repo = gh.get("repo", project_name)
+        branch = gh.get("branch", "main")
+        token = github_token or (get_github_token_from_secret() if "get_github_token_from_secret" in globals() else "")
+        if not token:
+            all_rows.append({"round": "final", "step": "GitHub 자동반영", "status": "대기", "detail": "GITHUB_TOKEN 없음"})
+        else:
+            try:
+                upload_rows = gh_upload_folder(src, owner, repo, branch, token, commit_msg, "")
+                ok_count = sum(1 for r in upload_rows if r.get("ok"))
+                fail_count = sum(1 for r in upload_rows if not r.get("ok"))
+                all_rows.append({"round": "final", "step": "GitHub 자동반영", "status": "성공" if fail_count == 0 else "일부실패", "detail": f"성공 {ok_count}, 실패 {fail_count}"})
+            except Exception as e:
+                all_rows.append({"round": "final", "step": "GitHub 자동반영", "status": "실패", "detail": str(e)})
+    elif not final_ok:
+        all_rows.append({"round": "final", "step": "풀자동화 종료", "status": "수동확인필요", "detail": "안전 자동수정 범위를 넘어선 오류입니다. 로그 기반 코드패치 필요"})
+    return all_rows
+# ===== /MARU V15 full automation repair engine =====
+
 tabs = st.tabs(["📋 기능",
     "📦 보관소",
     "🔁 연속자동화", "🤖 코드생성", "📁 등록", "📡 테스트", "🧯 로그분석", "🖼️ 사진분석/명령", "✅ 패치", "🔍 검사", "📦 버전", "🚀 GitHub 자동반영", "☁️ 구글시트", "📚 기록"    "📝 개선승인",
     "♻️ 무승인패치루프",
+    "🤖 풀자동화",
 ])
 
 with tabs[0]:
@@ -2286,3 +2508,34 @@ with tabs[-1]:
         st.caption("위 승인 항목들은 추가 승인 없이 패치 루프에 태울 수 있습니다.")
     else:
         st.caption("승인된 패치 대기 항목이 없습니다.")
+
+
+with tabs[-1]:
+    st.subheader("🤖 풀자동화: 자동수정 → 재테스트 → 자동반영")
+    st.caption("보관소 최신파일 기준으로 문법오류/NameError/누락파일을 안전 범위에서 자동수정하고, 재테스트 후 GitHub 자동반영까지 진행합니다.")
+    fa_project = st.selectbox("풀자동화 프로젝트", ["경마앱", "토토앱", "AI 코드 생성기"], key="full_auto_project")
+    fa_repeat = st.number_input("최대 자동수정 반복 횟수", min_value=1, max_value=10, value=5, step=1, key="full_auto_repeat")
+    fa_github = st.checkbox("통과 시 GitHub 자동반영", value=True, key="full_auto_github")
+    try:
+        fa_token = get_github_token_from_secret()
+    except Exception:
+        fa_token = ""
+    if fa_token:
+        st.success("GITHUB_TOKEN 감지됨: 통과 시 자동반영 가능")
+    else:
+        st.warning("GITHUB_TOKEN 없음: 자동반영은 대기 상태가 됩니다.")
+    fa_msg = st.text_input("커밋 메시지", value="MARU full auto repair update", key="full_auto_commit_msg")
+    st.info("자동수정 범위: 누락파일 생성, NameError helper 삽입, KST/save_memory/default_api 함수 보정, 안전한 문법오류 보정, 재테스트 반복. 위험한 코드 추정 수정은 멈추고 로그를 남깁니다.")
+    if st.button("풀자동화 시작", type="primary", use_container_width=True):
+        rows = maru_full_auto_loop(m, fa_project, repeat=int(fa_repeat), do_github=fa_github, github_token=fa_token, commit_msg=fa_msg)
+        st.dataframe(rows, use_container_width=True)
+        if rows and rows[-1].get("step") == "GitHub 자동반영":
+            st.success("풀자동화 루프 완료")
+        elif rows and rows[-1].get("status") == "수동확인필요":
+            st.warning("자동수정 안전범위를 넘어선 오류입니다. 로그분석 결과를 패치 탭에 넘겨야 합니다.")
+    st.divider()
+    st.markdown("### 풀자동화 원칙")
+    st.write("- 개선 요구사항은 최초 승인 후 진행")
+    st.write("- 승인 후에는 패치마다 추가 승인 없이 자동수정/재테스트")
+    st.write("- 자동구매/자동결제는 계속 차단")
+    st.write("- 위험한 코드 추정 수정은 무리하게 밀어붙이지 않고 멈춤")
