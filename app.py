@@ -1,7 +1,57 @@
 
 import streamlit as st
 
-# ===== MARU V13.7 absolute compatibility helpers =====
+# ===== MARU V13.8 display guard: hide accidental Streamlit help/debug dumps =====
+_MARU_ORIG_WRITE = st.write
+_MARU_ORIG_MARKDOWN = st.markdown
+_MARU_ORIG_TEXT = st.text
+_MARU_ORIG_CODE = st.code
+
+def _maru_is_streamlit_debug_dump(obj):
+    try:
+        s = str(obj)
+    except Exception:
+        return False
+    markers = [
+        "Streamlit 사용법",
+        "Take a look at the other commands",
+        "dir(streamlit)",
+        "streamlit hello",
+        "BottomContainerProxy",
+        "QueryParamsProxy",
+        "https://docs.streamlit.io",
+        ">>> import streamlit as st",
+    ]
+    return any(m in s for m in markers)
+
+def _maru_safe_write(*args, **kwargs):
+    if args and any(_maru_is_streamlit_debug_dump(a) for a in args):
+        return None
+    return _MARU_ORIG_WRITE(*args, **kwargs)
+
+def _maru_safe_markdown(body, *args, **kwargs):
+    if _maru_is_streamlit_debug_dump(body):
+        return None
+    return _MARU_ORIG_MARKDOWN(body, *args, **kwargs)
+
+def _maru_safe_text(body="", *args, **kwargs):
+    if _maru_is_streamlit_debug_dump(body):
+        return None
+    return _MARU_ORIG_TEXT(body, *args, **kwargs)
+
+def _maru_safe_code(body="", *args, **kwargs):
+    if _maru_is_streamlit_debug_dump(body):
+        return None
+    return _MARU_ORIG_CODE(body, *args, **kwargs)
+
+st.write = _maru_safe_write
+st.markdown = _maru_safe_markdown
+st.text = _maru_safe_text
+st.code = _maru_safe_code
+# ===== /MARU V13.8 display guard =====
+
+
+# ===== MARU V13.8 absolute compatibility helpers =====
 try:
     st
 except NameError:
@@ -100,10 +150,10 @@ def maru_github_token():
 
 def maru_github_token():
     return maru_github_token()
-# ===== /MARU V13.7 absolute compatibility helpers =====
+# ===== /MARU V13.8 absolute compatibility helpers =====
 
 
-# ===== MARU V13.7 missing helper hotfix =====
+# ===== MARU V13.8 missing helper hotfix =====
 def _maru_secret_get(name, default=""):
     try:
         value = st.secrets.get(name, default)
@@ -233,7 +283,7 @@ def maru_github_token():
 
 def maru_github_token():
     return maru_github_token()
-# ===== /MARU V13.7 missing helper hotfix =====
+# ===== /MARU V13.8 missing helper hotfix =====
 
 import zipfile, json, shutil, io, re, ast, subprocess, sys, base64, time
 from pathlib import Path
@@ -1053,9 +1103,9 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V13.7 통합 자동화 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V13.8 통합 자동화 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU V13.7 통합 자동화 AI")
+st.title("🧠 MARU V13.8 통합 자동화 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 

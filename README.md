@@ -102,3 +102,13 @@ TOTO_API_KEY = "토토_API_KEY"
 - V13.6 NameError 호환 수정 유지
 - GitHub 토큰/API 키 Secrets 자동감지 유지
 - 프로젝트 선택/자동반영 유지
+
+
+## V13.8 완전 화면 정리
+
+- Streamlit 도움말 원문 출력 제거
+- `st.help(st)`, `st.write(st)`, `dir(streamlit)` 계열 출력 제거
+- 혹시 남은 도움말/디버그 덤프도 화면에 표시되지 않도록 안전 가드 추가
+- V13.6 NameError 호환 수정 유지
+- V13.7 화면정리 유지
+- GitHub 토큰/API 키 Secrets 자동감지 유지
