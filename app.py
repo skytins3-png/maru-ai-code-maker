@@ -230,10 +230,10 @@ def maru_get_default_profile(mem_obj=None):
     return maru_maru_get_default_profile(mem_obj)
 
 def maru_github_token():
-    return maru_github_token()
+    return maru_secret_first("GITHUB_TOKEN", "MARU_GITHUB_TOKEN", "github_token", default="")
 
 def maru_github_token():
-    return maru_github_token()
+    return maru_secret_first("GITHUB_TOKEN", "MARU_GITHUB_TOKEN", "github_token", default="")
 # ===== /MARU V14 absolute compatibility helpers =====
 
 
@@ -366,12 +366,34 @@ def maru_github_token():
     return secret_first("GITHUB_TOKEN", "MARU_GITHUB_TOKEN", "github_token", default="")
 
 def maru_github_token():
-    return maru_github_token()
+    return maru_secret_first("GITHUB_TOKEN", "MARU_GITHUB_TOKEN", "github_token", default="")
 # ===== /MARU V14 missing helper hotfix =====
 
 import zipfile, json, shutil, io, re, ast, subprocess, sys, base64, time
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+
+# ===== MARU V14.5 KST final safe time helpers =====
+try:
+    KST
+except NameError:
+    KST = timezone(timedelta(hours=9))
+
+def maru_now_kst():
+    try:
+        return maru_now_kst()
+    except Exception:
+        return datetime.now(timezone(timedelta(hours=9)))
+
+def maru_now_kst_text():
+    return maru_now_kst().strftime("%Y-%m-%d %H:%M:%S KST")
+# ===== /MARU V14.5 KST final safe time helpers =====
+
+
+# 한국시간 고정값
+KST = timezone(timedelta(hours=9))
+
 import requests
 
 ROOT = Path(__file__).parent
@@ -438,7 +460,7 @@ def maru_read_vault_meta(label):
     return dict()
 
 def maru_write_vault_meta(label, meta):
-    meta["updated_at"] = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST")
+    meta["updated_at"] = maru_now_kst_text()
     maru_vault_meta_path(label).write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def maru_load_project_from_vault(mem_obj, label):
@@ -462,7 +484,7 @@ def maru_load_project_from_vault(mem_obj, label):
         },
         "vault_label": label,
         "vault_auto": True,
-        "updated_at": datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST"),
+        "updated_at": maru_now_kst_text(),
     }
     mem_obj["default_project"] = pname
     mem_obj["default_profile"] = {
@@ -564,7 +586,7 @@ def maru_analyze_loop_logs(test_result):
 
 def maru_loop_event(mem_obj, project_name, step, status, detail):
     mem_obj.setdefault("continuous_loop_history", []).append({
-        "time": datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST"),
+        "time": maru_now_kst_text(),
         "project": project_name,
         "step": step,
         "status": status,
@@ -1436,9 +1458,9 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V14.3 무승인 패치루프 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V14.5 KST 최종 안정화 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU V14.3 무승인 패치루프 AI")
+st.title("🧠 MARU V14.4 KST 보관소 안정화 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 
@@ -1446,13 +1468,13 @@ st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 �
 
 # ===== MARU V14.2 approval gate for improvement requirements =====
 def maru_new_req_id():
-    return datetime.now(KST).strftime("%Y%m%d%H%M%S") + "_" + str(uuid.uuid4())[:8]
+    return maru_now_kst().strftime("%Y%m%d%H%M%S") + "_" + str(uuid.uuid4())[:8]
 
 def maru_add_improvement_request(mem_obj, project_label, title, detail, priority="보통"):
     mem_obj.setdefault("improvement_requests", [])
     item = {
         "id": maru_new_req_id(),
-        "time": datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST"),
+        "time": maru_now_kst_text(),
         "project": project_label,
         "title": title.strip(),
         "detail": detail.strip(),
@@ -1472,7 +1494,7 @@ def maru_decide_improvement_request(mem_obj, req_id, decision, note=""):
             item["status"] = decision
             item["decision_note"] = note
             if decision == "승인":
-                item["approved_at"] = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST")
+                item["approved_at"] = maru_now_kst_text()
                 mem_obj.setdefault("approved_patch_queue", [])
                 mem_obj["approved_patch_queue"].append({
                     "id": req_id,
@@ -1503,7 +1525,7 @@ def maru_mark_patch_queue_done(mem_obj, req_id, status="패치진행중"):
     for item in mem_obj.setdefault("approved_patch_queue", []):
         if item.get("id") == req_id:
             item["status"] = status
-            item["updated_at"] = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST")
+            item["updated_at"] = maru_now_kst_text()
             save_memory(mem_obj)
             return True
     return False
