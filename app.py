@@ -1,7 +1,7 @@
 
 import streamlit as st
 
-# ===== MARU V13.6 absolute compatibility helpers =====
+# ===== MARU V13.7 absolute compatibility helpers =====
 try:
     st
 except NameError:
@@ -100,10 +100,10 @@ def maru_github_token():
 
 def maru_github_token():
     return maru_github_token()
-# ===== /MARU V13.6 absolute compatibility helpers =====
+# ===== /MARU V13.7 absolute compatibility helpers =====
 
 
-# ===== MARU V13.6 missing helper hotfix =====
+# ===== MARU V13.7 missing helper hotfix =====
 def _maru_secret_get(name, default=""):
     try:
         value = st.secrets.get(name, default)
@@ -233,7 +233,7 @@ def maru_github_token():
 
 def maru_github_token():
     return maru_github_token()
-# ===== /MARU V13.6 missing helper hotfix =====
+# ===== /MARU V13.7 missing helper hotfix =====
 
 import zipfile, json, shutil, io, re, ast, subprocess, sys, base64, time
 from pathlib import Path
@@ -347,7 +347,7 @@ FEATURES = [
     "승인한 항목 실제 패치", "app.py 실제 수정", "helper 파일 실제 추가",
     "새 버전 ZIP 생성", "GitHub 대상 저장소 자동 업로드/커밋",
     "Streamlit Cloud 자동 재배포 유도", "구글시트 저장 구조", 
-    "GitHub Actions 예약 테스트 파일 생성", "진화형 AI 코드 생성", "생성 앱 GitHub 허브 자동 업로드", "구글시트 허브 저장", "로그파일 붙여넣기/업로드 분석", "사진 첨부/명령 입력 분석", "HTML 카드 코드노출 수정", "경마시간 추천없음 표시 보정", "자동구매/자동결제 차단"
+    "GitHub Actions 예약 테스트 파일 생성", "진화형 AI 코드 생성", "생성 앱 GitHub 허브 자동 업로드", "구글시트 허브 저장", "로그파일 붙여넣기/업로드 분석", "사진 첨부/명령 입력 분석", "HTML 카드 코드노출 수정", "경마시간 추천없음 표시 보정", "화면 디버그 출력 제거", "자동구매/자동결제 차단"
 ]
 
 def load():
@@ -1053,9 +1053,9 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V13.6 통합 자동화 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V13.7 통합 자동화 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU V13.6 통합 자동화 AI")
+st.title("🧠 MARU V13.7 통합 자동화 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 

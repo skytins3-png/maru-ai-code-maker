@@ -93,3 +93,12 @@ TOTO_API_KEY = "토토_API_KEY"
 - 화면 코드에서 안전 함수 직접 사용
 - GitHub 404 새 파일 생성 처리 유지
 - 프로젝트 선택/토큰/API 자동불러오기 유지
+
+
+## V13.7 화면 정리
+
+- Streamlit 도움말/dir(streamlit) 디버그 출력 제거
+- 앱 상단에 길게 나오던 Streamlit 설명문 제거
+- V13.6 NameError 호환 수정 유지
+- GitHub 토큰/API 키 Secrets 자동감지 유지
+- 프로젝트 선택/자동반영 유지
