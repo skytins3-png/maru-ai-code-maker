@@ -1,5 +1,5 @@
 {
-  "version": "13.0-all-in-one-final",
+  "version": "13.4-github-404-create-fix",
   "projects": {},
   "patch_records": [],
   "github_deploys": [],
@@ -15,5 +15,15 @@
     "sheet_id": "",
     "service_account_json": ""
   },
-  "lessons": []
+  "lessons": [],
+  "default_profile": {
+    "project_name": "maru-kra-final-clean",
+    "app_url": "https://maru-kra-final-clean.streamlit.app",
+    "api_key": "",
+    "api_urls": "",
+    "github_owner": "skytins3-png",
+    "github_repo": "maru-kra-final-clean",
+    "github_branch": "main"
+  },
+  "saved_profiles": {}
 }
