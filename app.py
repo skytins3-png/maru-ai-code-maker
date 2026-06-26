@@ -398,6 +398,38 @@ import requests
 
 ROOT = Path(__file__).parent
 MEM = ROOT / "ai_memory.json"
+
+
+# ===== MARU V14.6 save_memory compatibility hotfix =====
+def save_memory(mem_obj):
+    """기존 앱에 저장 함수명이 없거나 달라도 보관소/루프가 멈추지 않게 하는 호환 저장 함수."""
+    try:
+        target = globals().get("MEM", None)
+        if target is None:
+            target = Path(__file__).parent / "ai_memory.json"
+        target = Path(target)
+        target.write_text(json.dumps(mem_obj, ensure_ascii=False, indent=2), encoding="utf-8")
+        return True
+    except Exception as e:
+        try:
+            st.warning(f"메모리 저장 실패: {e}")
+        except Exception:
+            pass
+        return False
+
+def load_memory_safe(default=None):
+    try:
+        target = globals().get("MEM", None)
+        if target is None:
+            target = Path(__file__).parent / "ai_memory.json"
+        target = Path(target)
+        if target.exists():
+            return json.loads(target.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return default if default is not None else {}
+# ===== /MARU V14.6 save_memory compatibility hotfix =====
+
 STORE = ROOT / "project_storage"
 VERS = ROOT / "version_outputs"
 GENERATED = ROOT / "generated_projects"
@@ -1458,7 +1490,7 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V14.5 KST 최종 안정화 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V14.6 저장함수 안정화 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
 st.title("🧠 MARU V14.4 KST 보관소 안정화 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
