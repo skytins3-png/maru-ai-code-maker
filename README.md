@@ -84,3 +84,12 @@ TOTO_API_KEY = "토토_API_KEY"
 - 프로젝트 선택 자동변경 유지
 - GitHub 토큰/API 키 Secrets 자동불러오기 유지
 - GitHub 404 Not Found → 새 파일 생성 처리 유지
+
+
+## V13.6 긴급 안정화
+
+- `default_api_key_for` NameError 재발 방지
+- 기존 함수명을 쓰는 코드와 새 함수명을 모두 호환 처리
+- 화면 코드에서 안전 함수 직접 사용
+- GitHub 404 새 파일 생성 처리 유지
+- 프로젝트 선택/토큰/API 자동불러오기 유지

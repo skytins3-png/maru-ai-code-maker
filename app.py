@@ -1,7 +1,109 @@
 
 import streamlit as st
 
-# ===== MARU V13.5 missing helper hotfix =====
+# ===== MARU V13.6 absolute compatibility helpers =====
+try:
+    st
+except NameError:
+    import streamlit as st
+
+def maru_secret_first(*names, default=""):
+    for _name in names:
+        try:
+            _val = st.secrets.get(_name, "")
+            if _val:
+                return _val
+        except Exception:
+            pass
+    return default
+
+def maru_maru_get_default_profile(mem_obj=None):
+    _base = {
+        "project_name": "maru-kra-final-clean",
+        "app_url": "https://maru-kra-final-clean.streamlit.app",
+        "api_key": "",
+        "api_urls": "",
+        "github_owner": "skytins3-png",
+        "github_repo": "maru-kra-final-clean",
+        "github_branch": "main",
+    }
+    try:
+        if mem_obj is not None:
+            _prof = mem_obj.setdefault("default_profile", {})
+            for _k, _v in _base.items():
+                _prof.setdefault(_k, _v)
+            return _prof
+    except Exception:
+        pass
+    return _base
+
+def maru_maru_profile_from_choice(choice, mem_obj=None):
+    _presets = {
+        "경마앱": {"project_name":"maru-kra-final-clean","app_url":"https://maru-kra-final-clean.streamlit.app","api_key":"","api_urls":"","github_owner":"skytins3-png","github_repo":"maru-kra-final-clean","github_branch":"main"},
+        "토토앱": {"project_name":"skytoto-ai-hub","app_url":"","api_key":"","api_urls":"","github_owner":"skytins3-png","github_repo":"skytoto-ai-hub","github_branch":"main"},
+        "AI 코드 생성기": {"project_name":"maru-ai-code-maker","app_url":"https://maru-ai-code-maker.streamlit.app","api_key":"","api_urls":"","github_owner":"skytins3-png","github_repo":"maru-ai-code-maker","github_branch":"main"},
+        "직접입력": {"project_name":"","app_url":"","api_key":"","api_urls":"","github_owner":"skytins3-png","github_repo":"","github_branch":"main"},
+    }
+    _p = _presets.get(choice, _presets["직접입력"]).copy()
+    if choice == "직접입력":
+        _p.update(maru_maru_get_default_profile(mem_obj))
+    else:
+        _cur = maru_maru_get_default_profile(mem_obj)
+        if _cur.get("api_key") and not _p.get("api_key"):
+            _p["api_key"] = _cur.get("api_key", "")
+        if _cur.get("api_urls") and not _p.get("api_urls"):
+            _p["api_urls"] = _cur.get("api_urls", "")
+    return _p
+
+def maru_api_key_for(choice, mem_obj=None):
+    if choice == "경마앱":
+        return maru_secret_first("KRA_API_KEY", "PUBLIC_DATA_API_KEY", "MARU_KRA_API_KEY", default=maru_maru_get_default_profile(mem_obj).get("api_key", ""))
+    if choice == "토토앱":
+        return maru_secret_first("TOTO_API_KEY", "SPORTS_API_KEY", "SPORTMONKS_TOKEN", "MARU_TOTO_API_KEY", default=maru_maru_get_default_profile(mem_obj).get("api_key", ""))
+    return maru_maru_get_default_profile(mem_obj).get("api_key", "")
+
+def maru_api_urls_for(choice, mem_obj=None):
+    _cur = maru_maru_get_default_profile(mem_obj).get("api_urls", "")
+    if _cur:
+        return _cur
+    if choice == "경마앱":
+        return "\n".join([
+            "https://apis.data.go.kr/B551015/API310/raceInfo?serviceKey={serviceKey}&pageNo=1&numOfRows=100&_type=json",
+            "https://apis.data.go.kr/B551015/API310/entryInfo?serviceKey={serviceKey}&pageNo=1&numOfRows=100&_type=json",
+            "https://apis.data.go.kr/B551015/API310/horseInfo?serviceKey={serviceKey}&pageNo=1&numOfRows=100&_type=json",
+        ])
+    if choice == "토토앱":
+        return "\n".join([
+            "https://api.sportmonks.com/v3/football/fixtures/date/{today_dash}?api_token={api_key}&include=participants;league",
+            "https://api.sportmonks.com/v3/football/fixtures/between/{today_dash}/{today_dash}?api_token={api_key}&include=participants;league",
+        ])
+    return ""
+
+def maru_github_token():
+    return maru_secret_first("GITHUB_TOKEN", "MARU_GITHUB_TOKEN", "github_token", default="")
+
+# Backward-compatible names. If old screen code calls these, they now always exist.
+def default_api_key_for(choice, mem_obj=None):
+    return maru_api_key_for(choice, mem_obj)
+
+def default_api_urls_for(choice, mem_obj=None):
+    return maru_api_urls_for(choice, mem_obj)
+
+def maru_profile_from_choice(choice, mem_obj=None):
+    return maru_maru_profile_from_choice(choice, mem_obj)
+
+def maru_get_default_profile(mem_obj=None):
+    return maru_maru_get_default_profile(mem_obj)
+
+def maru_github_token():
+    return maru_github_token()
+
+def maru_github_token():
+    return maru_github_token()
+# ===== /MARU V13.6 absolute compatibility helpers =====
+
+
+# ===== MARU V13.6 missing helper hotfix =====
 def _maru_secret_get(name, default=""):
     try:
         value = st.secrets.get(name, default)
@@ -16,7 +118,7 @@ def secret_first(*names, default=""):
             return value
     return default
 
-def get_default_profile(mem_obj=None):
+def maru_get_default_profile(mem_obj=None):
     base = {
         "project_name": "maru-kra-final-clean",
         "app_url": "https://maru-kra-final-clean.streamlit.app",
@@ -75,14 +177,14 @@ PROJECT_PRESETS = {
     },
 }
 
-def profile_from_choice(choice, mem_obj=None):
+def maru_profile_from_choice(choice, mem_obj=None):
     prof = PROJECT_PRESETS.get(choice, PROJECT_PRESETS["직접입력"]).copy()
     if choice == "직접입력":
-        current = get_default_profile(mem_obj)
+        current = maru_get_default_profile(mem_obj)
         prof.update(current)
         return prof
     try:
-        current = get_default_profile(mem_obj)
+        current = maru_get_default_profile(mem_obj)
         if current.get("api_key") and not prof.get("api_key"):
             prof["api_key"] = current.get("api_key", "")
         if current.get("api_urls") and not prof.get("api_urls"):
@@ -91,13 +193,13 @@ def profile_from_choice(choice, mem_obj=None):
         pass
     return prof
 
-def default_api_key_for(choice, mem_obj=None):
+def maru_api_key_for(choice, mem_obj=None):
     if choice == "경마앱":
         return secret_first(
             "KRA_API_KEY",
             "PUBLIC_DATA_API_KEY",
             "MARU_KRA_API_KEY",
-            default=get_default_profile(mem_obj).get("api_key", ""),
+            default=maru_get_default_profile(mem_obj).get("api_key", ""),
         )
     if choice == "토토앱":
         return secret_first(
@@ -105,12 +207,12 @@ def default_api_key_for(choice, mem_obj=None):
             "SPORTS_API_KEY",
             "SPORTMONKS_TOKEN",
             "MARU_TOTO_API_KEY",
-            default=get_default_profile(mem_obj).get("api_key", ""),
+            default=maru_get_default_profile(mem_obj).get("api_key", ""),
         )
-    return get_default_profile(mem_obj).get("api_key", "")
+    return maru_get_default_profile(mem_obj).get("api_key", "")
 
-def default_api_urls_for(choice, mem_obj=None):
-    current = get_default_profile(mem_obj).get("api_urls", "")
+def maru_api_urls_for(choice, mem_obj=None):
+    current = maru_get_default_profile(mem_obj).get("api_urls", "")
     if current:
         return current
     if choice == "경마앱":
@@ -126,12 +228,12 @@ def default_api_urls_for(choice, mem_obj=None):
         ])
     return ""
 
-def get_github_token_from_secret():
+def maru_github_token():
     return secret_first("GITHUB_TOKEN", "MARU_GITHUB_TOKEN", "github_token", default="")
 
-def token_for_github_input():
-    return get_github_token_from_secret()
-# ===== /MARU V13.5 missing helper hotfix =====
+def maru_github_token():
+    return maru_github_token()
+# ===== /MARU V13.6 missing helper hotfix =====
 
 import zipfile, json, shutil, io, re, ast, subprocess, sys, base64, time
 from pathlib import Path
@@ -207,15 +309,15 @@ PROJECT_PRESETS = {
     },
 }
 
-def profile_from_choice(choice, mem=None):
+def maru_profile_from_choice(choice, mem=None):
     base = PROJECT_PRESETS.get(choice, PROJECT_PRESETS["직접입력"]).copy()
     if choice == "직접입력" and mem is not None:
-        current = get_default_profile(mem).copy()
+        current = maru_get_default_profile(mem).copy()
         current.setdefault("github_owner", "skytins3-png")
         current.setdefault("github_branch", "main")
         return current
     if mem is not None:
-        current = get_default_profile(mem)
+        current = maru_get_default_profile(mem)
         # API 키와 API URL은 사용자가 저장한 값이 있으면 유지해서 재입력 줄이기
         if current.get("api_key") and not base.get("api_key"):
             base["api_key"] = current.get("api_key", "")
@@ -920,7 +1022,7 @@ jobs:
           PY
 """
 
-def get_default_profile(mem):
+def maru_get_default_profile(mem):
     return mem.setdefault("default_profile", {
         "project_name": "maru-kra-final-clean",
         "app_url": "https://maru-kra-final-clean.streamlit.app",
@@ -942,7 +1044,7 @@ def get_secret_value(name, default=""):
     except Exception:
         return default
 
-def get_github_token_from_secret():
+def maru_github_token():
     # Streamlit Secrets에 GITHUB_TOKEN / MARU_GITHUB_TOKEN 저장하면 모바일에서도 자동 입력됨
     for key in ["GITHUB_TOKEN", "MARU_GITHUB_TOKEN", "github_token"]:
         val = get_secret_value(key, "")
@@ -951,9 +1053,9 @@ def get_github_token_from_secret():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V13.5 통합 자동화 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V13.6 통합 자동화 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU V13.5 통합 자동화 AI")
+st.title("🧠 MARU V13.6 통합 자동화 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 
@@ -966,20 +1068,20 @@ with tabs[0]:
     st.subheader("⚙️ 기본설정 자동불러오기")
     st.caption("경마앱/토토앱/AI 코드 생성기를 선택하면 프로젝트 이름, 앱 주소, GitHub repo가 자동으로 바뀝니다.")
     preset_choice = st.selectbox("프로젝트 선택", ["경마앱", "토토앱", "AI 코드 생성기", "직접입력"], key="default_project_choice")
-    prof = profile_from_choice(preset_choice, m)
+    prof = maru_profile_from_choice(preset_choice, m)
     st.info(f"현재 선택: {preset_choice} → {prof.get('project_name','') or '직접입력'}")
     c1, c2 = st.columns(2)
     with c1:
         p_name = st.text_input("기본 프로젝트 이름", value=prof.get("project_name", "maru-kra-final-clean"), key=f"default_project_name_{preset_choice}")
         p_url = st.text_input("기본 배포 앱 주소", value=prof.get("app_url", "https://maru-kra-final-clean.streamlit.app"), key=f"default_app_url_{preset_choice}")
-        auto_api_key = default_api_key_for(preset_choice, m)
+        auto_api_key = maru_api_key_for(preset_choice, m)
         p_api_key = st.text_input("기본 API KEY/TOKEN", value=auto_api_key, type="password", key=f"default_api_key_{preset_choice}", placeholder="Secrets에 있으면 자동 입력")
     with c2:
         p_owner = st.text_input("기본 GitHub owner", value=prof.get("github_owner", "skytins3-png"), key=f"default_gh_owner_{preset_choice}")
         p_repo = st.text_input("기본 GitHub repo", value=prof.get("github_repo", "maru-kra-final-clean"), key=f"default_gh_repo_{preset_choice}")
         p_branch = st.text_input("기본 branch", value=prof.get("github_branch", "main"), key=f"default_gh_branch_{preset_choice}")
-    p_api_urls = st.text_area("기본 API URL 목록", value=default_api_urls_for(preset_choice, m), height=120, key=f"default_api_urls_{preset_choice}")
-    secret_token = get_github_token_from_secret()
+    p_api_urls = st.text_area("기본 API URL 목록", value=maru_api_urls_for(preset_choice, m), height=120, key=f"default_api_urls_{preset_choice}")
+    secret_token = maru_github_token()
     if secret_token:
         st.success("Streamlit Secrets의 GITHUB_TOKEN 감지: GitHub 자동반영 탭에서 자동 사용됩니다.")
     else:
@@ -1028,12 +1130,12 @@ with tabs[1]:
         gh = m["projects"][hub_project].get("github", {})
         c1, c2 = st.columns(2)
         with c1:
-            prof = get_default_profile(m)
+            prof = maru_get_default_profile(m)
             hub_owner = st.text_input("허브 GitHub owner", value=gh.get("owner", prof.get("github_owner", "skytins3-png")), key="hub_owner_codegen")
             hub_repo = st.text_input("허브 대상 repo", value=gh.get("repo", prof.get("github_repo", hub_project)), key="hub_repo_codegen")
             hub_branch = st.text_input("branch", value=gh.get("branch", prof.get("github_branch", "main")), key="hub_branch_codegen")
         with c2:
-            hub_token = st.text_input("GitHub 토큰", value=get_github_token_from_secret(), type="password", key="hub_token_codegen")
+            hub_token = st.text_input("GitHub 토큰", value=maru_github_token(), type="password", key="hub_token_codegen")
             hub_msg = st.text_input("커밋 메시지", value=f"MARU generated code hub upload {datetime.now().strftime('%Y-%m-%d %H:%M')}", key="hub_msg_codegen")
             st.warning("토큰은 저장하지 않습니다. 채팅창/README/GitHub 파일에 붙이지 마세요.")
         if st.button("생성 앱 GitHub 허브에 자동 업로드/커밋", type="primary", use_container_width=True):
@@ -1068,13 +1170,13 @@ with tabs[1]:
 with tabs[2]:
     st.subheader("프로젝트 등록")
     reg_choice = st.selectbox("프로젝트 선택", ["경마앱", "토토앱", "AI 코드 생성기", "직접입력"], key="reg_project_choice")
-    prof = profile_from_choice(reg_choice, m)
+    prof = maru_profile_from_choice(reg_choice, m)
     st.info(f"{reg_choice} 선택됨: 프로젝트/주소/repo 자동 적용")
     name = st.text_input("프로젝트 이름", value=prof.get("project_name", "maru-kra-final-clean"), placeholder="maru-kra-final-clean", key=f"maru_project_name_{reg_choice}")
     app_url = st.text_input("배포 앱 주소", value=prof.get("app_url", "https://maru-kra-final-clean.streamlit.app"), placeholder="https://maru-kra-final-clean.streamlit.app", key=f"maru_app_url_{reg_choice}")
-    auto_api_key = default_api_key_for(reg_choice, m)
+    auto_api_key = maru_api_key_for(reg_choice, m)
     api_key = st.text_input("API KEY/TOKEN 자동값", value=auto_api_key, type="password", key=f"reg_api_key_{reg_choice}", placeholder="Secrets/기본설정에서 자동")
-    api_urls = st.text_area("API URL 목록 - 한 줄에 하나", value=default_api_urls_for(reg_choice, m), key=f"reg_api_urls_{reg_choice}")
+    api_urls = st.text_area("API URL 목록 - 한 줄에 하나", value=maru_api_urls_for(reg_choice, m), key=f"reg_api_urls_{reg_choice}")
     up = st.file_uploader("ZIP 또는 app.py", type=["zip","py"])
     if st.button("저장 + 자동검사", type="primary", use_container_width=True):
         pname = infer_project_name(name, app_url, up)
@@ -1274,7 +1376,7 @@ with tabs[9]:
         sel=st.selectbox("프로젝트", ps, key="gh")
         info=m["projects"][sel]; old=info.get("github",{})
     else:
-        prof_choice = profile_from_choice(gh_choice, m)
+        prof_choice = maru_profile_from_choice(gh_choice, m)
         sel = prof_choice.get("project_name", gh_choice)
         if sel in m.get("projects", {}):
             info=m["projects"][sel]; old=info.get("github",{})
@@ -1283,13 +1385,13 @@ with tabs[9]:
             st.info("아직 등록되지 않은 대상입니다. 먼저 📁 등록에서 ZIP/app.py를 등록하면 자동반영할 수 있습니다.")
         c1,c2=st.columns(2)
         with c1:
-            prof = get_default_profile(m)
+            prof = maru_get_default_profile(m)
             owner=st.text_input("GitHub owner", old.get("owner", prof.get("github_owner","skytins3-png")))
             repo=st.text_input("대상 repo", old.get("repo", prof.get("github_repo", sel)))
             branch=st.text_input("branch", old.get("branch", prof.get("github_branch","main")))
             prefix=st.text_input("업로드 폴더 prefix", old.get("prefix",""), placeholder="비우면 루트")
         with c2:
-            token=st.text_input("GitHub 토큰", value=get_github_token_from_secret(), type="password")
+            token=st.text_input("GitHub 토큰", value=maru_github_token(), type="password")
             msg=st.text_input("커밋 메시지", f"MARU auto patch deploy {datetime.now().strftime('%Y-%m-%d %H:%M')}")
             savecfg=st.checkbox("토큰 제외 설정 저장", value=True)
             st.warning("토큰은 파일에 저장하지 않습니다. 반복 입력이 불편하면 Streamlit Secrets에 GITHUB_TOKEN으로 저장하세요.")
