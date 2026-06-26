@@ -1,5 +1,5 @@
 {
-  "version": "13.9-block-st-help",
+  "version": "14.3-no-extra-approval-patch-loop",
   "projects": {},
   "patch_records": [],
   "github_deploys": [],
@@ -25,5 +25,9 @@
     "github_repo": "maru-kra-final-clean",
     "github_branch": "main"
   },
-  "saved_profiles": {}
+  "saved_profiles": {},
+  "project_vault": {},
+  "continuous_loop_history": [],
+  "improvement_requests": [],
+  "approved_patch_queue": []
 }

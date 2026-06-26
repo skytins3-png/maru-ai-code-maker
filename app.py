@@ -1,7 +1,7 @@
 
 import streamlit as st
 
-# ===== MARU V13.9 hard block Streamlit help dumps =====
+# ===== MARU V14 hard block Streamlit help dumps =====
 try:
     _MARU_ORIG_HELP = st.help
 except Exception:
@@ -82,10 +82,10 @@ try:
     st.code = _maru_code2
 except Exception:
     pass
-# ===== /MARU V13.9 hard block Streamlit help dumps =====
+# ===== /MARU V14 hard block Streamlit help dumps =====
 
 
-# ===== MARU V13.9 display guard: hide accidental Streamlit help/debug dumps =====
+# ===== MARU V14 display guard: hide accidental Streamlit help/debug dumps =====
 _MARU_ORIG_WRITE = st.write
 _MARU_ORIG_MARKDOWN = st.markdown
 _MARU_ORIG_TEXT = st.text
@@ -132,10 +132,10 @@ st.write = _maru_safe_write
 st.markdown = _maru_safe_markdown
 st.text = _maru_safe_text
 st.code = _maru_safe_code
-# ===== /MARU V13.9 display guard =====
+# ===== /MARU V14 display guard =====
 
 
-# ===== MARU V13.9 absolute compatibility helpers =====
+# ===== MARU V14 absolute compatibility helpers =====
 try:
     st
 except NameError:
@@ -234,10 +234,10 @@ def maru_github_token():
 
 def maru_github_token():
     return maru_github_token()
-# ===== /MARU V13.9 absolute compatibility helpers =====
+# ===== /MARU V14 absolute compatibility helpers =====
 
 
-# ===== MARU V13.9 missing helper hotfix =====
+# ===== MARU V14 missing helper hotfix =====
 def _maru_secret_get(name, default=""):
     try:
         value = st.secrets.get(name, default)
@@ -367,7 +367,7 @@ def maru_github_token():
 
 def maru_github_token():
     return maru_github_token()
-# ===== /MARU V13.9 missing helper hotfix =====
+# ===== /MARU V14 missing helper hotfix =====
 
 import zipfile, json, shutil, io, re, ast, subprocess, sys, base64, time
 from pathlib import Path
@@ -380,6 +380,255 @@ STORE = ROOT / "project_storage"
 VERS = ROOT / "version_outputs"
 GENERATED = ROOT / "generated_projects"
 IMAGE_STORE = ROOT / "image_uploads"
+
+
+# ===== MARU V14 project vault auto apply =====
+MARU_PROJECT_VAULT_DIR = ROOT / "project_vault"
+MARU_PROJECT_VAULT_DIR.mkdir(parents=True, exist_ok=True)
+
+MARU_PROJECT_PRESETS = {
+    "경마앱": {
+        "project_name": "maru-kra-final-clean",
+        "app_url": "https://maru-kra-final-clean.streamlit.app",
+        "github_owner": "skytins3-png",
+        "github_repo": "maru-kra-final-clean",
+        "github_branch": "main",
+    },
+    "토토앱": {
+        "project_name": "skytoto-ai-hub",
+        "app_url": "",
+        "github_owner": "skytins3-png",
+        "github_repo": "skytoto-ai-hub",
+        "github_branch": "main",
+    },
+    "AI 코드 생성기": {
+        "project_name": "maru-ai-code-maker",
+        "app_url": "https://maru-ai-code-maker.streamlit.app",
+        "github_owner": "skytins3-png",
+        "github_repo": "maru-ai-code-maker",
+        "github_branch": "main",
+    },
+}
+
+def maru_vault_key(label):
+    preset = MARU_PROJECT_PRESETS.get(label, dict())
+    name = preset.get("project_name", label)
+    return str(name).replace("/", "_").replace(" ", "_")
+
+def maru_vault_project_dir(label):
+    d = MARU_PROJECT_VAULT_DIR / maru_vault_key(label)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+def maru_vault_src_dir(label):
+    d = maru_vault_project_dir(label) / "latest_src"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+def maru_vault_meta_path(label):
+    return maru_vault_project_dir(label) / "vault_meta.json"
+
+def maru_read_vault_meta(label):
+    p = maru_vault_meta_path(label)
+    if p.exists():
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            return dict()
+    return dict()
+
+def maru_write_vault_meta(label, meta):
+    meta["updated_at"] = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST")
+    maru_vault_meta_path(label).write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+def maru_load_project_from_vault(mem_obj, label):
+    preset = MARU_PROJECT_PRESETS.get(label, dict())
+    pname = preset.get("project_name", label)
+    src = maru_vault_src_dir(label)
+    meta = maru_read_vault_meta(label)
+    if not (src / "app.py").exists():
+        return False, f"{label} 보관소에 app.py가 없습니다. 최초 1회만 ZIP/app.py를 보관소에 저장하세요."
+    mem_obj.setdefault("projects", dict())
+    mem_obj["projects"][pname] = {
+        "name": pname,
+        "src": str(src),
+        "app_url": preset.get("app_url", meta.get("app_url", "")),
+        "api_key": meta.get("api_key", ""),
+        "api_urls": meta.get("api_urls", []),
+        "github": {
+            "owner": preset.get("github_owner", "skytins3-png"),
+            "repo": preset.get("github_repo", pname),
+            "branch": preset.get("github_branch", "main"),
+        },
+        "vault_label": label,
+        "vault_auto": True,
+        "updated_at": datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST"),
+    }
+    mem_obj["default_project"] = pname
+    mem_obj["default_profile"] = {
+        "project_name": pname,
+        "app_url": preset.get("app_url", ""),
+        "api_key": meta.get("api_key", ""),
+        "api_urls": "\\n".join(meta.get("api_urls", [])) if isinstance(meta.get("api_urls", []), list) else str(meta.get("api_urls", "")),
+        "github_owner": preset.get("github_owner", "skytins3-png"),
+        "github_repo": preset.get("github_repo", pname),
+        "github_branch": preset.get("github_branch", "main"),
+    }
+    save_memory(mem_obj)
+    return True, f"{label} 최신파일을 보관소에서 불러왔습니다. 이제 등록 없이 패치/검사/GitHub 자동반영 가능합니다."
+
+def maru_save_upload_to_vault(label, uploaded_file, api_key="", api_urls_text=""):
+    src = maru_vault_src_dir(label)
+    if src.exists():
+        shutil.rmtree(src)
+    src.mkdir(parents=True, exist_ok=True)
+    raw_dir = maru_vault_project_dir(label) / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    filename = uploaded_file.name
+    raw_path = raw_dir / filename
+    raw_path.write_bytes(uploaded_file.getvalue())
+    if filename.lower().endswith(".zip"):
+        with zipfile.ZipFile(raw_path, "r") as z:
+            z.extractall(src)
+        nested_apps = list(src.rglob("app.py"))
+        if nested_apps and not (src / "app.py").exists():
+            root = nested_apps[0].parent
+            temp = maru_vault_project_dir(label) / "_flatten_temp"
+            if temp.exists():
+                shutil.rmtree(temp)
+            shutil.copytree(root, temp)
+            shutil.rmtree(src)
+            temp.rename(src)
+    else:
+        (src / filename).write_bytes(raw_path.read_bytes())
+        if filename != "app.py" and filename.lower().endswith(".py"):
+            shutil.copy2(src / filename, src / "app.py")
+    api_urls = [x.strip() for x in str(api_urls_text).splitlines() if x.strip()]
+    meta = {
+        "label": label,
+        "project_name": MARU_PROJECT_PRESETS.get(label, dict()).get("project_name", label),
+        "filename": filename,
+        "api_key": api_key,
+        "api_urls": api_urls,
+        "src": str(src),
+    }
+    maru_write_vault_meta(label, meta)
+    return src, meta
+# ===== /MARU V14 project vault auto apply =====
+
+
+# ===== MARU V14.1 continuous patch-test-log loop =====
+def maru_run_basic_project_test(src):
+    """보관소/프로젝트 소스 기준 기본 테스트: 파일 존재, 문법, requirements 확인."""
+    result = {
+        "ok": True,
+        "checks": [],
+        "errors": [],
+        "logs": [],
+    }
+    src = Path(src)
+    app_file = src / "app.py"
+    if not app_file.exists():
+        result["ok"] = False
+        result["errors"].append("app.py 없음")
+    else:
+        result["checks"].append("app.py 확인")
+        try:
+            py_compile.compile(str(app_file), doraise=True)
+            result["checks"].append("app.py 문법 검사 통과")
+        except Exception as e:
+            result["ok"] = False
+            result["errors"].append("app.py 문법 오류: " + str(e))
+    req = src / "requirements.txt"
+    if req.exists():
+        result["checks"].append("requirements.txt 확인")
+    else:
+        result["logs"].append("requirements.txt 없음: Streamlit 기본 의존성만 사용 가능")
+    return result
+
+def maru_analyze_loop_logs(test_result):
+    """테스트 결과를 로그분석 형태로 정리하고 다음 패치 힌트 생성."""
+    hints = []
+    for e in test_result.get("errors", []):
+        if "app.py 없음" in e:
+            hints.append("보관소 ZIP 구조를 확인하고 app.py가 루트에 오도록 평탄화하세요.")
+        elif "SyntaxError" in e or "문법 오류" in e:
+            hints.append("app.py 문법 오류 위치를 찾아 자동 패치 후보로 등록하세요.")
+        elif "NameError" in e:
+            hints.append("누락 함수/변수 호환 helper를 상단에 추가하세요.")
+        else:
+            hints.append("오류 로그 기반으로 해당 파일을 재검사하세요: " + e[:160])
+    if not hints and test_result.get("ok"):
+        hints.append("테스트 통과: GitHub 자동반영 후 Streamlit 로그 확인 단계로 진행 가능")
+    return hints
+
+def maru_loop_event(mem_obj, project_name, step, status, detail):
+    mem_obj.setdefault("continuous_loop_history", []).append({
+        "time": datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST"),
+        "project": project_name,
+        "step": step,
+        "status": status,
+        "detail": detail,
+    })
+    mem_obj["continuous_loop_history"] = mem_obj["continuous_loop_history"][-100:]
+    save_memory(mem_obj)
+
+def maru_get_project_info_from_choice(mem_obj, label):
+    ok, msg = maru_load_project_from_vault(mem_obj, label)
+    if not ok:
+        return None, msg
+    pname = MARU_PROJECT_PRESETS[label]["project_name"]
+    return mem_obj.get("projects", {}).get(pname), msg
+
+def maru_run_continuous_loop_once(mem_obj, label, do_github=False, github_token="", commit_msg="MARU auto loop patch"):
+    """한 번의 연속 루프: 보관소 불러오기 -> 테스트 -> 로그분석 -> 필요 시 GitHub 자동반영."""
+    info, msg = maru_get_project_info_from_choice(mem_obj, label)
+    if not info:
+        return [{"step": "보관소 불러오기", "status": "실패", "detail": msg}]
+    project_name = info.get("name", MARU_PROJECT_PRESETS[label]["project_name"])
+    src = Path(info.get("src", ""))
+    rows = []
+    rows.append({"step": "보관소 불러오기", "status": "성공", "detail": msg})
+    maru_loop_event(mem_obj, project_name, "보관소 불러오기", "성공", msg)
+
+    test_result = maru_run_basic_project_test(src)
+    rows.append({"step": "자동 테스트", "status": "성공" if test_result.get("ok") else "실패", "detail": json.dumps(test_result, ensure_ascii=False)})
+    maru_loop_event(mem_obj, project_name, "자동 테스트", "성공" if test_result.get("ok") else "실패", json.dumps(test_result, ensure_ascii=False))
+
+    hints = maru_analyze_loop_logs(test_result)
+    rows.append({"step": "로그분석", "status": "완료", "detail": " / ".join(hints)})
+    maru_loop_event(mem_obj, project_name, "로그분석", "완료", " / ".join(hints))
+
+    if test_result.get("ok") and do_github:
+        gh = info.get("github", {})
+        owner = gh.get("owner", "skytins3-png")
+        repo = gh.get("repo", project_name)
+        branch = gh.get("branch", "main")
+        token = github_token or (get_github_token_from_secret() if "get_github_token_from_secret" in globals() else "")
+        if not token:
+            rows.append({"step": "GitHub 자동반영", "status": "대기", "detail": "GITHUB_TOKEN 없음"})
+            maru_loop_event(mem_obj, project_name, "GitHub 자동반영", "대기", "GITHUB_TOKEN 없음")
+        else:
+            try:
+                upload_rows = gh_upload_folder(src, owner, repo, branch, token, commit_msg, "")
+                ok_count = sum(1 for r in upload_rows if r.get("ok"))
+                fail_count = sum(1 for r in upload_rows if not r.get("ok"))
+                detail = f"성공 {ok_count}, 실패 {fail_count}"
+                rows.append({"step": "GitHub 자동반영", "status": "성공" if fail_count == 0 else "일부실패", "detail": detail})
+                maru_loop_event(mem_obj, project_name, "GitHub 자동반영", "성공" if fail_count == 0 else "일부실패", detail)
+            except Exception as e:
+                rows.append({"step": "GitHub 자동반영", "status": "실패", "detail": str(e)})
+                maru_loop_event(mem_obj, project_name, "GitHub 자동반영", "실패", str(e))
+    elif not test_result.get("ok"):
+        rows.append({"step": "재패치 대기", "status": "필요", "detail": "테스트 실패 → 로그분석 힌트 기반 패치 필요"})
+        maru_loop_event(mem_obj, project_name, "재패치 대기", "필요", "테스트 실패 → 로그분석 힌트 기반 패치 필요")
+    else:
+        rows.append({"step": "GitHub 자동반영", "status": "선택안함", "detail": "테스트까지만 실행"})
+        maru_loop_event(mem_obj, project_name, "GitHub 자동반영", "선택안함", "테스트까지만 실행")
+    return rows
+# ===== /MARU V14.1 continuous patch-test-log loop =====
+
+
 STORE.mkdir(exist_ok=True)
 VERS.mkdir(exist_ok=True)
 GENERATED.mkdir(exist_ok=True)
@@ -479,7 +728,7 @@ FEATURES = [
     "오류 파일 검사", "문법 검사", "기존 기능 분석", "자동테스트",
     "반복 자동테스트", "개선안 추천", "승인/미승인/추가지시",
     "승인한 항목 실제 패치", "app.py 실제 수정", "helper 파일 실제 추가",
-    "새 버전 ZIP 생성", "GitHub 대상 저장소 자동 업로드/커밋",
+    "새 버전 ZIP 생성", "프로젝트 보관소 최신파일 자동불러오기", "패치-반영-테스트-로그분석 연속자동화", "개선 요구사항 승인 후 진행", "승인 후 패치 무승인 연속루프", "GitHub 대상 저장소 자동 업로드/커밋",
     "Streamlit Cloud 자동 재배포 유도", "구글시트 저장 구조", 
     "GitHub Actions 예약 테스트 파일 생성", "진화형 AI 코드 생성", "생성 앱 GitHub 허브 자동 업로드", "구글시트 허브 저장", "로그파일 붙여넣기/업로드 분석", "사진 첨부/명령 입력 분석", "HTML 카드 코드노출 수정", "경마시간 추천없음 표시 보정", "화면 디버그 출력 제거", "자동구매/자동결제 차단"
 ]
@@ -1187,13 +1436,183 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V13.9 통합 자동화 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V14.3 무승인 패치루프 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU V13.9 통합 자동화 AI")
+st.title("🧠 MARU V14.3 무승인 패치루프 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 
-tabs = st.tabs(["📋 기능", "🤖 코드생성", "📁 등록", "📡 테스트", "🧯 로그분석", "🖼️ 사진분석/명령", "✅ 패치", "🔍 검사", "📦 버전", "🚀 GitHub 자동반영", "☁️ 구글시트", "📚 기록"])
+
+
+# ===== MARU V14.2 approval gate for improvement requirements =====
+def maru_new_req_id():
+    return datetime.now(KST).strftime("%Y%m%d%H%M%S") + "_" + str(uuid.uuid4())[:8]
+
+def maru_add_improvement_request(mem_obj, project_label, title, detail, priority="보통"):
+    mem_obj.setdefault("improvement_requests", [])
+    item = {
+        "id": maru_new_req_id(),
+        "time": datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST"),
+        "project": project_label,
+        "title": title.strip(),
+        "detail": detail.strip(),
+        "priority": priority,
+        "status": "승인대기",
+        "approved_at": "",
+        "decision_note": "",
+    }
+    mem_obj["improvement_requests"].append(item)
+    save_memory(mem_obj)
+    return item
+
+def maru_decide_improvement_request(mem_obj, req_id, decision, note=""):
+    mem_obj.setdefault("improvement_requests", [])
+    for item in mem_obj["improvement_requests"]:
+        if item.get("id") == req_id:
+            item["status"] = decision
+            item["decision_note"] = note
+            if decision == "승인":
+                item["approved_at"] = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST")
+                mem_obj.setdefault("approved_patch_queue", [])
+                mem_obj["approved_patch_queue"].append({
+                    "id": req_id,
+                    "time": item["approved_at"],
+                    "project": item.get("project", ""),
+                    "title": item.get("title", ""),
+                    "detail": item.get("detail", ""),
+                    "source": "개선요구 승인",
+                    "status": "패치대기",
+                })
+            save_memory(mem_obj)
+            return True, item
+    return False, None
+
+def maru_get_improvement_requests(mem_obj, status=None):
+    rows = mem_obj.setdefault("improvement_requests", [])
+    if status:
+        return [r for r in rows if r.get("status") == status]
+    return rows
+
+def maru_get_approved_patch_queue(mem_obj, status=None):
+    rows = mem_obj.setdefault("approved_patch_queue", [])
+    if status:
+        return [r for r in rows if r.get("status") == status]
+    return rows
+
+def maru_mark_patch_queue_done(mem_obj, req_id, status="패치진행중"):
+    for item in mem_obj.setdefault("approved_patch_queue", []):
+        if item.get("id") == req_id:
+            item["status"] = status
+            item["updated_at"] = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S KST")
+            save_memory(mem_obj)
+            return True
+    return False
+# ===== /MARU V14.2 approval gate for improvement requirements =====
+
+
+
+# ===== MARU V14.3 no-extra-approval auto patch loop =====
+def maru_auto_patch_from_log_hints(mem_obj, project_label, hints):
+    """
+    승인된 개선요구 이후에는 패치마다 추가 승인 없이 자동 패치 후보를 적용하는 루프용.
+    현재는 안전 패치만 수행:
+    - 누락 README/requirements 생성
+    - ai_memory.json 기본 구조 보정
+    - app.py 문법 실패 시 자동수정 대신 로그 기록 후 재패치 필요 표시
+    """
+    info, msg = maru_get_project_info_from_choice(mem_obj, project_label)
+    if not info:
+        return {"ok": False, "patched": [], "message": msg}
+    src = Path(info.get("src", ""))
+    patched = []
+
+    # 안전 보정 1: requirements.txt 없으면 기본값 생성
+    req = src / "requirements.txt"
+    if not req.exists():
+        req.write_text("streamlit\npandas\nnumpy\nrequests\n", encoding="utf-8")
+        patched.append("requirements.txt 기본 생성")
+
+    # 안전 보정 2: README.md 없으면 생성
+    readme = src / "README.md"
+    if not readme.exists():
+        readme.write_text(f"# {info.get('name', project_label)}\n\nMARU 자동 보관소 프로젝트입니다.\n", encoding="utf-8")
+        patched.append("README.md 기본 생성")
+
+    # 안전 보정 3: ai_memory.json 없으면 생성
+    memfile = src / "ai_memory.json"
+    if not memfile.exists():
+        memfile.write_text(json.dumps({"version": "auto-created", "project": info.get("name", project_label)}, ensure_ascii=False, indent=2), encoding="utf-8")
+        patched.append("ai_memory.json 기본 생성")
+
+    detail = " / ".join(patched) if patched else "적용 가능한 안전 자동패치 없음"
+    maru_loop_event(mem_obj, info.get("name", project_label), "무승인 자동패치", "완료", detail)
+    return {"ok": True, "patched": patched, "message": detail}
+
+def maru_run_no_approval_patch_loop(mem_obj, label, repeat=3, do_github=True, github_token="", commit_msg="MARU no approval auto patch loop"):
+    """
+    승인된 개선요구가 있거나 사용자가 루프를 시작하면:
+    패치 추가승인 없이 테스트 → 로그분석 → 안전 자동패치 → 재테스트 → 자동반영 흐름 실행
+    """
+    all_rows = []
+    for n in range(int(repeat)):
+        info, msg = maru_get_project_info_from_choice(mem_obj, label)
+        if not info:
+            all_rows.append({"round": n+1, "step": "보관소 불러오기", "status": "실패", "detail": msg})
+            break
+
+        project_name = info.get("name", MARU_PROJECT_PRESETS[label]["project_name"])
+        src = Path(info.get("src", ""))
+
+        all_rows.append({"round": n+1, "step": "보관소 불러오기", "status": "성공", "detail": msg})
+        test_result = maru_run_basic_project_test(src)
+        all_rows.append({"round": n+1, "step": "자동 테스트", "status": "성공" if test_result.get("ok") else "실패", "detail": json.dumps(test_result, ensure_ascii=False)})
+        maru_loop_event(mem_obj, project_name, "자동 테스트", "성공" if test_result.get("ok") else "실패", json.dumps(test_result, ensure_ascii=False))
+
+        hints = maru_analyze_loop_logs(test_result)
+        all_rows.append({"round": n+1, "step": "로그분석", "status": "완료", "detail": " / ".join(hints)})
+        maru_loop_event(mem_obj, project_name, "로그분석", "완료", " / ".join(hints))
+
+        if not test_result.get("ok"):
+            patch_result = maru_auto_patch_from_log_hints(mem_obj, label, hints)
+            all_rows.append({"round": n+1, "step": "무승인 자동패치", "status": "완료" if patch_result.get("ok") else "실패", "detail": patch_result.get("message", "")})
+            # 안전 자동패치가 없으면 무한 반복 방지
+            if not patch_result.get("patched"):
+                all_rows.append({"round": n+1, "step": "재패치 중지", "status": "수동확인필요", "detail": "자동으로 안전하게 고칠 수 없는 오류입니다. 로그를 보고 코드패치 필요"})
+                break
+            continue
+
+        if test_result.get("ok") and do_github:
+            gh = info.get("github", {})
+            owner = gh.get("owner", "skytins3-png")
+            repo = gh.get("repo", project_name)
+            branch = gh.get("branch", "main")
+            token = github_token or (get_github_token_from_secret() if "get_github_token_from_secret" in globals() else "")
+            if not token:
+                all_rows.append({"round": n+1, "step": "GitHub 자동반영", "status": "대기", "detail": "GITHUB_TOKEN 없음"})
+                break
+            try:
+                upload_rows = gh_upload_folder(src, owner, repo, branch, token, f"{commit_msg} #{n+1}", "")
+                ok_count = sum(1 for r in upload_rows if r.get("ok"))
+                fail_count = sum(1 for r in upload_rows if not r.get("ok"))
+                status = "성공" if fail_count == 0 else "일부실패"
+                detail = f"성공 {ok_count}, 실패 {fail_count}"
+                all_rows.append({"round": n+1, "step": "GitHub 자동반영", "status": status, "detail": detail})
+                maru_loop_event(mem_obj, project_name, "GitHub 자동반영", status, detail)
+            except Exception as e:
+                all_rows.append({"round": n+1, "step": "GitHub 자동반영", "status": "실패", "detail": str(e)})
+            break
+        else:
+            all_rows.append({"round": n+1, "step": "완료", "status": "테스트통과", "detail": "GitHub 자동반영 선택 안 함"})
+            break
+    save_memory(mem_obj)
+    return all_rows
+# ===== /MARU V14.3 no-extra-approval auto patch loop =====
+
+tabs = st.tabs(["📋 기능",
+    "📦 보관소",
+    "🔁 연속자동화", "🤖 코드생성", "📁 등록", "📡 테스트", "🧯 로그분석", "🖼️ 사진분석/명령", "✅ 패치", "🔍 검사", "📦 버전", "🚀 GitHub 자동반영", "☁️ 구글시트", "📚 기록"    "📝 개선승인",
+    "♻️ 무승인패치루프",
+])
 
 with tabs[0]:
     st.write(FEATURES)
@@ -1238,7 +1657,106 @@ with tabs[0]:
             st.rerun()
 
 
+
 with tabs[1]:
+    st.subheader("📦 프로젝트 보관소")
+    st.caption("최신파일을 한 번 저장해두면 다음부터는 등록 없이 프로젝트 클릭으로 불러와 패치/업그레이드/자동반영합니다.")
+
+    vault_choice = st.selectbox("보관소 프로젝트 선택", ["경마앱", "토토앱", "AI 코드 생성기"], key="vault_choice")
+    meta = maru_read_vault_meta(vault_choice)
+    src = maru_vault_src_dir(vault_choice)
+    has_app = (src / "app.py").exists()
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("보관 상태", "저장됨" if has_app else "비어 있음")
+        st.write("프로젝트:", MARU_PROJECT_PRESETS[vault_choice]["project_name"])
+        st.write("GitHub repo:", MARU_PROJECT_PRESETS[vault_choice]["github_repo"])
+    with c2:
+        st.write("마지막 저장:", meta.get("updated_at", "-"))
+        st.write("파일:", meta.get("filename", "-"))
+
+    if st.button("이 프로젝트 최신파일 불러오기", type="primary", use_container_width=True):
+        ok, msg = maru_load_project_from_vault(m, vault_choice)
+        if ok:
+            st.success(msg)
+        else:
+            st.error(msg)
+
+    st.divider()
+    st.markdown("### 최초 1회 또는 새 버전 저장")
+    st.info("여기에 한 번 저장하면 이후에는 📁 등록을 반복하지 않아도 됩니다.")
+    vault_upload = st.file_uploader("보관소에 저장할 ZIP 또는 app.py", type=["zip", "py"], key="vault_upload")
+    try:
+        auto_key = default_api_key_for(vault_choice, m)
+    except Exception:
+        auto_key = ""
+    try:
+        auto_urls = default_api_urls_for(vault_choice, m)
+    except Exception:
+        auto_urls = ""
+    vault_api_key = st.text_input("API KEY/TOKEN 자동 저장값", value=auto_key, type="password", key="vault_api_key")
+    vault_api_urls = st.text_area("API URL 목록 저장값", value=auto_urls, height=120, key="vault_api_urls")
+
+    if st.button("보관소에 저장하고 바로 불러오기", use_container_width=True):
+        if not vault_upload:
+            st.error("ZIP 또는 app.py를 선택하세요. 이건 최초 1회 보관용입니다.")
+        else:
+            src, meta = maru_save_upload_to_vault(vault_choice, vault_upload, vault_api_key, vault_api_urls)
+            ok, msg = maru_load_project_from_vault(m, vault_choice)
+            if ok:
+                st.success("보관소 저장 완료 + 프로젝트 자동 선택 완료")
+                st.write(str(src))
+            else:
+                st.error(msg)
+
+
+
+with tabs[2]:
+    st.subheader("🔁 패치-반영-테스트-로그분석 연속자동화")
+    st.caption("보관소 최신파일 기준으로 프로젝트 선택 → 테스트 → 로그분석 → GitHub 자동반영까지 한 흐름으로 연결합니다.")
+
+    loop_choice = st.selectbox("연속자동화 프로젝트", ["경마앱", "토토앱", "AI 코드 생성기"], key="loop_choice")
+    loop_repeat = st.number_input("반복 횟수", min_value=1, max_value=5, value=1, step=1, key="loop_repeat")
+    loop_github = st.checkbox("테스트 통과 시 GitHub 자동반영까지 실행", value=True, key="loop_github")
+    try:
+        loop_token = get_github_token_from_secret()
+    except Exception:
+        loop_token = ""
+    if loop_token:
+        st.success("GITHUB_TOKEN 감지됨: 자동반영 때 토큰 재입력 안 해도 됩니다.")
+    else:
+        st.warning("GITHUB_TOKEN이 없으면 GitHub 자동반영은 대기 상태가 됩니다.")
+    commit_msg = st.text_input("자동 커밋 메시지", value="MARU continuous loop auto update", key="loop_commit_msg")
+
+    if st.button("연속자동화 시작", type="primary", use_container_width=True):
+        all_rows = []
+        for n in range(int(loop_repeat)):
+            rows = maru_run_continuous_loop_once(
+                m,
+                loop_choice,
+                do_github=loop_github,
+                github_token=loop_token,
+                commit_msg=f"{commit_msg} #{n+1}",
+            )
+            for r in rows:
+                r["round"] = n + 1
+                all_rows.append(r)
+            # 테스트 실패면 무한 반복하지 않고 멈춤
+            if any(r.get("step") == "재패치 대기" and r.get("status") == "필요" for r in rows):
+                break
+        st.dataframe(all_rows, use_container_width=True)
+        st.info("테스트 실패가 나오면 로그분석 힌트를 패치 탭으로 넘겨 다시 패치한 뒤, 같은 루프를 재실행하는 구조입니다.")
+
+    st.divider()
+    st.markdown("### 최근 연속자동화 기록")
+    hist = m.get("continuous_loop_history", [])[-30:]
+    if hist:
+        st.dataframe(hist, use_container_width=True)
+    else:
+        st.caption("아직 연속자동화 기록이 없습니다.")
+
+with tabs[3]:
     st.subheader("진화형 AI 코드 생성기 + 자동 허브 업로드")
     st.caption("목표를 입력하면 Streamlit 앱을 생성하고, 검사 후 GitHub 허브 저장소로 자동 업로드할 수 있습니다.")
     gen_name = st.text_input("생성 프로젝트 이름", placeholder="maru-new-app")
@@ -1301,7 +1819,7 @@ with tabs[1]:
                     st.warning(f"일부 제외/실패: 성공 {ok}, 실패 {fail}")
                 st.json(rows[:100])
 
-with tabs[2]:
+with tabs[4]:
     st.subheader("프로젝트 등록")
     reg_choice = st.selectbox("프로젝트 선택", ["경마앱", "토토앱", "AI 코드 생성기", "직접입력"], key="reg_project_choice")
     prof = maru_profile_from_choice(reg_choice, m)
@@ -1338,7 +1856,7 @@ with tabs[2]:
             st.success(f"등록/검사 완료: {pname}")
             st.json(info["scan"]); st.json(info["analysis"])
 
-with tabs[7]:
+with tabs[9]:
     ps = list(m["projects"].keys())
     if not ps: st.info("등록 먼저")
     else:
@@ -1353,7 +1871,7 @@ with tabs[7]:
         st.subheader("오류 파일"); st.json(info.get("errors", []))
         st.subheader("기능 분석"); st.json(info.get("analysis", {}))
 
-with tabs[3]:
+with tabs[5]:
     ps = list(m["projects"].keys())
     if not ps: st.info("등록 먼저")
     else:
@@ -1372,7 +1890,7 @@ with tabs[3]:
         info = m["projects"][sel]
         st.download_button("PC 꺼져도 테스트용 maru_auto_test.yml", workflow(info.get("app_url",""), info.get("api_urls",[])).encode(), "maru_auto_test.yml", "text/yaml", use_container_width=True)
 
-with tabs[4]:
+with tabs[6]:
     st.subheader("로그파일 / 오류 로그 분석")
     st.caption("Streamlit Cloud 로그를 복사해 붙여넣거나 log/txt/json 파일을 업로드하면 오류 패턴을 분석하고 필요한 패치를 추천합니다.")
     ps = list(m["projects"].keys())
@@ -1413,7 +1931,7 @@ with tabs[4]:
             st.markdown("### 최근 로그 분석 결과")
             st.json(last)
 
-with tabs[5]:
+with tabs[7]:
     st.subheader("사진 첨부 분석 + 명령 입력")
     st.caption("앱 화면 캡처/오류 사진을 올리고 명령을 입력하면 패치 추천으로 저장합니다.")
     ps = list(m["projects"].keys())
@@ -1466,7 +1984,7 @@ with tabs[5]:
             st.markdown("### 최근 사진/명령 분석 결과")
             st.json(last_img)
 
-with tabs[6]:
+with tabs[8]:
     ps = list(m["projects"].keys())
     if not ps: st.info("등록 먼저")
     else:
@@ -1500,7 +2018,7 @@ with tabs[6]:
             st.json({"before":before,"after":after,"syntax":syn})
             with open(zp,"rb") as f: st.download_button("패치 ZIP 다운로드", f, file_name=zp.name, mime="application/zip", use_container_width=True)
 
-with tabs[9]:
+with tabs[11]:
     gh_choice = st.selectbox("자동반영 대상 선택", ["경마앱", "토토앱", "AI 코드 생성기", "등록된 프로젝트"], key="gh_target_choice")
     ps=list(m["projects"].keys())
     if gh_choice == "등록된 프로젝트":
@@ -1548,7 +2066,7 @@ with tabs[9]:
                 st.success("GitHub 자동반영 완료. Streamlit Cloud가 곧 재배포합니다." if fail==0 else f"일부 실패: 성공 {ok}, 실패 {fail}")
                 st.json(rows[:100])
 
-with tabs[8]:
+with tabs[10]:
     ps=list(m["projects"].keys())
     if not ps: st.info("등록 먼저")
     else:
@@ -1561,7 +2079,7 @@ with tabs[8]:
             st.download_button("단일 app.py", read(app_path).encode(), f"{sname(sel)}_app.py", "text/x-python", use_container_width=True)
 
 
-with tabs[10]:
+with tabs[12]:
     st.subheader("구글시트 허브 저장")
     st.caption("프로젝트, 테스트, 패치, GitHub 자동반영, 코드생성 허브 업로드 기록을 Google Sheets에 저장합니다.")
     cfg = get_gsheet_config(m)
@@ -1591,7 +2109,7 @@ with tabs[10]:
     st.markdown("### 저장되는 탭")
     st.write(["connection_test", "projects", "test_records", "patch_records", "github_deploys", "hub_uploads", "log_analyses", "image_analyses", "generated_projects", "lessons"])
 
-with tabs[11]:
+with tabs[13]:
     st.subheader("GitHub 자동반영 기록"); st.json(m.get("github_deploys", [])[-20:])
     st.subheader("코드생성 허브 업로드 기록"); st.json(m.get("hub_uploads", [])[-20:])
     st.subheader("패치 기록"); st.json(m.get("patch_records", [])[-20:])
@@ -1599,3 +2117,118 @@ with tabs[11]:
     st.subheader("로그 분석 기록"); st.json(m.get("log_analyses", [])[-20:])
     st.subheader("사진/명령 분석 기록"); st.json(m.get("image_analyses", [])[-20:])
     st.subheader("학습"); st.json(m.get("lessons", [])[-50:])
+
+
+with tabs[-1]:
+    st.subheader("📝 개선 요구사항 승인 후 진행")
+    st.caption("개선 요구사항은 바로 패치하지 않고 승인대기 → 승인 → 패치대기 → 반영/테스트 순서로 진행합니다.")
+
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        req_project = st.selectbox("대상 프로젝트", ["경마앱", "토토앱", "AI 코드 생성기", "직접입력"], key="approval_project")
+        req_priority = st.selectbox("우선순위", ["낮음", "보통", "높음", "긴급"], index=1, key="approval_priority")
+        req_title = st.text_input("개선 제목", placeholder="예: 보관소 선택 후 자동 테스트까지 연결", key="approval_title")
+    with c2:
+        req_detail = st.text_area("개선 상세", placeholder="원하는 개선 내용을 적으면 승인대기함에 저장됩니다.", height=160, key="approval_detail")
+
+    if st.button("개선 요구사항 승인대기 등록", type="primary", use_container_width=True):
+        if not req_title.strip() or not req_detail.strip():
+            st.error("개선 제목과 상세 내용을 입력하세요.")
+        else:
+            item = maru_add_improvement_request(m, req_project, req_title, req_detail, req_priority)
+            st.success("승인대기 등록 완료")
+            st.json(item)
+
+    st.divider()
+    st.markdown("### 승인대기 목록")
+    pending = maru_get_improvement_requests(m, "승인대기")
+    if pending:
+        for item in pending:
+            with st.expander(f"{item.get('priority','보통')} · {item.get('project','')} · {item.get('title','')}"):
+                st.write(item.get("detail", ""))
+                note = st.text_input("결정 메모", key=f"note_{item['id']}")
+                b1, b2, b3 = st.columns(3)
+                with b1:
+                    if st.button("승인", key=f"approve_{item['id']}", use_container_width=True):
+                        ok, updated = maru_decide_improvement_request(m, item["id"], "승인", note)
+                        if ok:
+                            st.success("승인 완료 → 패치대기열로 이동")
+                            st.rerun()
+                with b2:
+                    if st.button("보류", key=f"hold_{item['id']}", use_container_width=True):
+                        ok, updated = maru_decide_improvement_request(m, item["id"], "보류", note)
+                        if ok:
+                            st.warning("보류 처리")
+                            st.rerun()
+                with b3:
+                    if st.button("거절", key=f"reject_{item['id']}", use_container_width=True):
+                        ok, updated = maru_decide_improvement_request(m, item["id"], "거절", note)
+                        if ok:
+                            st.error("거절 처리")
+                            st.rerun()
+    else:
+        st.caption("승인대기 중인 개선 요구사항이 없습니다.")
+
+    st.divider()
+    st.markdown("### 승인된 패치 대기열")
+    queue = maru_get_approved_patch_queue(m)
+    if queue:
+        st.dataframe(queue, use_container_width=True)
+        patch_ids = [q["id"] for q in queue if q.get("status") == "패치대기"]
+        if patch_ids:
+            selected_patch_id = st.selectbox("패치 진행할 승인 항목", patch_ids, key="selected_approved_patch")
+            if st.button("선택 항목 패치진행중으로 표시", use_container_width=True):
+                maru_mark_patch_queue_done(m, selected_patch_id, "패치진행중")
+                st.success("패치진행중으로 변경했습니다. 패치 탭에서 이 요구사항 기준으로 작업하세요.")
+                st.rerun()
+    else:
+        st.caption("승인된 패치 대기열이 없습니다.")
+
+    st.divider()
+    st.markdown("### 전체 개선 요구사항 기록")
+    all_reqs = maru_get_improvement_requests(m)
+    if all_reqs:
+        st.dataframe(all_reqs, use_container_width=True)
+    else:
+        st.caption("기록 없음")
+
+
+with tabs[-1]:
+    st.subheader("♻️ 승인 후 무승인 패치 연속 루프")
+    st.caption("개선 요구사항 승인 후에는 패치마다 다시 승인 묻지 않고 테스트 → 로그분석 → 자동패치 → 재테스트 → 반영으로 이어갑니다.")
+
+    auto_project = st.selectbox("자동패치 루프 프로젝트", ["경마앱", "토토앱", "AI 코드 생성기"], key="auto_patch_loop_project")
+    auto_repeat = st.number_input("최대 반복 횟수", min_value=1, max_value=10, value=3, step=1, key="auto_patch_repeat")
+    auto_github = st.checkbox("테스트 통과 시 GitHub 자동반영", value=True, key="auto_patch_github")
+    try:
+        auto_token = get_github_token_from_secret()
+    except Exception:
+        auto_token = ""
+    if auto_token:
+        st.success("GITHUB_TOKEN 감지됨: 반영 때 토큰 입력 없이 진행")
+    else:
+        st.warning("GITHUB_TOKEN 없음: 자동반영은 대기 상태가 됩니다.")
+    auto_msg = st.text_input("커밋 메시지", value="MARU auto patch loop update", key="auto_patch_commit_msg")
+
+    st.info("안전 자동패치 범위: requirements.txt / README.md / ai_memory.json 누락 보정, 기본 구조 보정. 위험한 코드 수정은 로그 기록 후 재패치 필요로 멈춥니다.")
+
+    if st.button("무승인 패치 루프 시작", type="primary", use_container_width=True):
+        rows = maru_run_no_approval_patch_loop(
+            m,
+            auto_project,
+            repeat=int(auto_repeat),
+            do_github=auto_github,
+            github_token=auto_token,
+            commit_msg=auto_msg,
+        )
+        st.dataframe(rows, use_container_width=True)
+
+    st.divider()
+    st.markdown("### 승인된 요구사항 + 무승인 루프 연결")
+    queue = maru_get_approved_patch_queue(m) if "maru_get_approved_patch_queue" in globals() else []
+    ready = [q for q in queue if q.get("status") in ["패치대기", "패치진행중"]]
+    if ready:
+        st.dataframe(ready, use_container_width=True)
+        st.caption("위 승인 항목들은 추가 승인 없이 패치 루프에 태울 수 있습니다.")
+    else:
+        st.caption("승인된 패치 대기 항목이 없습니다.")
