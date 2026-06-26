@@ -1,7 +1,91 @@
 
 import streamlit as st
 
-# ===== MARU V13.8 display guard: hide accidental Streamlit help/debug dumps =====
+# ===== MARU V13.9 hard block Streamlit help dumps =====
+try:
+    _MARU_ORIG_HELP = st.help
+except Exception:
+    _MARU_ORIG_HELP = None
+
+def _maru_block_help(obj=None, *args, **kwargs):
+    try:
+        s = str(obj)
+    except Exception:
+        s = ""
+    # Streamlit 자체 도움말은 화면에 길게 뿌리지 않음
+    if obj is st or "streamlit" in s.lower() or "DeltaGenerator" in s or "BottomContainerProxy" in s:
+        return None
+    if _MARU_ORIG_HELP:
+        return _MARU_ORIG_HELP(obj, *args, **kwargs)
+    return None
+
+try:
+    st.help = _maru_block_help
+except Exception:
+    pass
+
+def _maru_strip_streamlit_help_text(s):
+    try:
+        s = str(s)
+    except Exception:
+        return s
+    markers = [
+        "Streamlit 사용법",
+        "Take a look at the other commands",
+        "dir(streamlit)",
+        "streamlit hello",
+        "BottomContainerProxy",
+        "QueryParamsProxy",
+        ">>> import streamlit as st",
+        "For more detailed info, see https://docs.streamlit.io",
+        "더 자세한 정보는 https://docs.streamlit.io",
+    ]
+    if any(m in s for m in markers):
+        return ""
+    return s
+
+# 기존 안전 출력 함수가 있든 없든 한 번 더 강제 차단
+try:
+    _MARU_ORIG_WRITE2 = st.write
+    _MARU_ORIG_MARKDOWN2 = st.markdown
+    _MARU_ORIG_TEXT2 = st.text
+    _MARU_ORIG_CODE2 = st.code
+
+    def _maru_write2(*args, **kwargs):
+        clean = [_maru_strip_streamlit_help_text(a) for a in args]
+        clean = [a for a in clean if a not in ("", None)]
+        if not clean:
+            return None
+        return _MARU_ORIG_WRITE2(*clean, **kwargs)
+
+    def _maru_markdown2(body, *args, **kwargs):
+        body = _maru_strip_streamlit_help_text(body)
+        if not body:
+            return None
+        return _MARU_ORIG_MARKDOWN2(body, *args, **kwargs)
+
+    def _maru_text2(body="", *args, **kwargs):
+        body = _maru_strip_streamlit_help_text(body)
+        if not body:
+            return None
+        return _MARU_ORIG_TEXT2(body, *args, **kwargs)
+
+    def _maru_code2(body="", *args, **kwargs):
+        body = _maru_strip_streamlit_help_text(body)
+        if not body:
+            return None
+        return _MARU_ORIG_CODE2(body, *args, **kwargs)
+
+    st.write = _maru_write2
+    st.markdown = _maru_markdown2
+    st.text = _maru_text2
+    st.code = _maru_code2
+except Exception:
+    pass
+# ===== /MARU V13.9 hard block Streamlit help dumps =====
+
+
+# ===== MARU V13.9 display guard: hide accidental Streamlit help/debug dumps =====
 _MARU_ORIG_WRITE = st.write
 _MARU_ORIG_MARKDOWN = st.markdown
 _MARU_ORIG_TEXT = st.text
@@ -48,10 +132,10 @@ st.write = _maru_safe_write
 st.markdown = _maru_safe_markdown
 st.text = _maru_safe_text
 st.code = _maru_safe_code
-# ===== /MARU V13.8 display guard =====
+# ===== /MARU V13.9 display guard =====
 
 
-# ===== MARU V13.8 absolute compatibility helpers =====
+# ===== MARU V13.9 absolute compatibility helpers =====
 try:
     st
 except NameError:
@@ -150,10 +234,10 @@ def maru_github_token():
 
 def maru_github_token():
     return maru_github_token()
-# ===== /MARU V13.8 absolute compatibility helpers =====
+# ===== /MARU V13.9 absolute compatibility helpers =====
 
 
-# ===== MARU V13.8 missing helper hotfix =====
+# ===== MARU V13.9 missing helper hotfix =====
 def _maru_secret_get(name, default=""):
     try:
         value = st.secrets.get(name, default)
@@ -283,7 +367,7 @@ def maru_github_token():
 
 def maru_github_token():
     return maru_github_token()
-# ===== /MARU V13.8 missing helper hotfix =====
+# ===== /MARU V13.9 missing helper hotfix =====
 
 import zipfile, json, shutil, io, re, ast, subprocess, sys, base64, time
 from pathlib import Path
@@ -1103,9 +1187,9 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V13.8 통합 자동화 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V13.9 통합 자동화 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU V13.8 통합 자동화 AI")
+st.title("🧠 MARU V13.9 통합 자동화 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 
