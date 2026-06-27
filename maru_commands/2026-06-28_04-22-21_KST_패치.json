@@ -1,0 +1,18 @@
+{
+  "project_choice": "AI 코드 생성기",
+  "project": "maru-ai-code-maker",
+  "repo": "maru-ai-code-maker",
+  "command_type": "패치",
+  "command_text": "새로고침 재부팅 업로드 파일 사라지지 않게 만들어줘\n",
+  "attached_files": [],
+  "created_at": "2026-06-28_04-22-21_KST",
+  "status": "REGISTERED",
+  "workflow": [
+    "명령사항 접수",
+    "보관소 저장",
+    "검사",
+    "자동패치/풀자동화",
+    "GitHub 자동반영",
+    "Streamlit 재배포 확인"
+  ]
+}
