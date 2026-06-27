@@ -7,7 +7,7 @@ import json, re, os, zipfile, shutil, base64, traceback, py_compile, ast
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
-APP_VERSION = "21.0-test-patch-upgrade"
+APP_VERSION = "22.0-full-menu-classify-preview-approval"
 KST = timezone(timedelta(hours=9))
 
 def maru_now_kst_text():
@@ -2744,6 +2744,9 @@ def maru_v21_engine_ui(project_choice):
             else:
                 result_rows.append({"단계": "GitHub 반영", "상태": "건너뜀", "설명": "체크하지 않음"})
 
+            preview_path, preview_data = maru_v22_save_pending_preview(project_choice, "V21 업그레이드 결과", result_rows, output_zip=str(zip_path), report_path=str(out_root / "MARU_V21_UPGRADE_REPORT.json"))
+            st.info(f"승인 대기 미리보기 저장됨: {preview_path}")
+
             maru_show_rows(result_rows)
 
             with st.expander("▶ 검사 결과 상세", expanded=False):
@@ -2911,9 +2914,290 @@ def maru_v203_dedicated_upload_center():
         maru_v203_fixed_upload_box("토토앱", "v203_toto")
 # ===== /MARU V20.3 dedicated project upload helpers =====
 
+
+
+# ===== MARU V21.1 dedicated improvement approval center =====
+def maru_v211_improvement_box(project_choice, key_prefix):
+    cfg = maru_v21_project_cfg(project_choice) if callable(globals().get("maru_v21_project_cfg")) else maru_v20_project_config(project_choice)
+    st.markdown(f"### {project_choice} 개선승인")
+    st.caption(f"이 칸의 개선 명령은 `{cfg.get('owner')}/{cfg.get('repo')}` 저장소 대상으로만 처리됩니다.")
+
+    with st.expander("▶ 대상 앱/저장소 확인", expanded=True):
+        st.write("대상 앱:", project_choice)
+        st.write("프로젝트:", cfg.get("project"))
+        st.write("GitHub repo:", f"{cfg.get('owner')}/{cfg.get('repo')}")
+        st.write("branch:", cfg.get("branch", "main"))
+        st.write("앱 주소:", cfg.get("app_url", ""))
+
+    if callable(globals().get("maru_v204_show_status")):
+        with st.expander("▶ 최근 개선/반영 상태", expanded=True):
+            maru_v204_show_status(project_choice)
+
+    command_type = st.selectbox(
+        f"{project_choice} 개선 종류",
+        ["패치", "개선", "오류수정", "사진/화면분석", "기능추가", "UI정리", "기타"],
+        key=f"{key_prefix}_type"
+    )
+    command_text = st.text_area(
+        f"{project_choice} 개선 명령사항",
+        height=150,
+        placeholder=f"예: {project_choice} 화면에서 글씨를 키우고, 상세 내용은 접기 화살표로 숨겨줘.",
+        key=f"{key_prefix}_text"
+    )
+    attached = st.file_uploader(
+        f"{project_choice} 첨부파일/사진",
+        type=["png", "jpg", "jpeg", "webp", "txt", "py", "zip", "json", "md"],
+        accept_multiple_files=True,
+        key=f"{key_prefix}_files"
+    )
+
+    with st.expander("▶ 처리 방식", expanded=False):
+        upload_command = st.checkbox("명령사항을 GitHub maru_commands에 기록", value=True, key=f"{key_prefix}_upload_command")
+        run_fullauto = st.checkbox("등록 후 풀자동화 실행", value=True, key=f"{key_prefix}_run_fullauto")
+        do_github = st.checkbox("풀자동화 통과 시 GitHub 자동반영", value=True, key=f"{key_prefix}_do_github")
+        repeat = st.number_input("풀자동화 반복 횟수", min_value=1, max_value=10, value=3, step=1, key=f"{key_prefix}_repeat")
+        commit_msg = st.text_input("커밋 메시지", value=f"MARU improvement approval: {project_choice}", key=f"{key_prefix}_commit")
+
+    if st.button(f"{project_choice} 개선승인 → 자동처리", type="primary", key=f"{key_prefix}_run_btn"):
+        if not command_text.strip():
+            st.error("개선 명령사항을 입력하세요.")
+            return
+        result_rows = []
+        gh_rows = []
+        auto_rows = []
+        try:
+            if callable(globals().get("maru_v195_save_command")):
+                record, json_path, md_path, files_dir = maru_v195_save_command(project_choice, command_type, command_text, attached)
+                result_rows.append({"단계": "개선명령 보관소 저장", "상태": "성공", "설명": str(json_path)})
+                if callable(globals().get("maru_v204_record")):
+                    maru_v204_record(project_choice, "개선명령 보관소 저장", "성공", command_text[:120], file_name=str(json_path), path=str(json_path))
+            else:
+                result_rows.append({"단계": "개선명령 보관소 저장", "상태": "실패", "설명": "maru_v195_save_command 없음"})
+                maru_show_rows(result_rows)
+                return
+
+            if upload_command and callable(globals().get("maru_v195_upload_command_to_github")):
+                gh_rows = maru_v195_upload_command_to_github(project_choice, md_path, json_path, files_dir, commit_msg)
+                ok = sum(1 for r in gh_rows if r.get("ok"))
+                fail = sum(1 for r in gh_rows if not r.get("ok"))
+                status = "성공" if fail == 0 else "일부실패"
+                result_rows.append({"단계": "명령 GitHub 기록", "상태": status, "설명": f"성공 {ok} / 실패 {fail}"})
+                if callable(globals().get("maru_v204_record")):
+                    maru_v204_record(project_choice, "개선명령 GitHub 기록", status, f"성공 {ok} / 실패 {fail}", file_name=Path(md_path).name, repo=f"{cfg.get('owner')}/{cfg.get('repo')}", path=str(md_path))
+            elif upload_command:
+                result_rows.append({"단계": "명령 GitHub 기록", "상태": "실패", "설명": "GitHub 명령 기록 함수 없음"})
+            else:
+                result_rows.append({"단계": "명령 GitHub 기록", "상태": "건너뜀", "설명": "체크하지 않음"})
+
+            if run_fullauto and callable(globals().get("maru_v195_try_full_auto")):
+                auto_rows = maru_v195_try_full_auto(project_choice, repeat, do_github, commit_msg)
+                error_count = sum(1 for r in auto_rows if str(r.get("상태", r.get("status", ""))).lower() in ["오류", "실패", "error"])
+                status = "완료" if error_count == 0 else "확인필요"
+                result_rows.append({"단계": "풀자동화 실행", "상태": status, "설명": f"결과 {len(auto_rows)}건"})
+                if callable(globals().get("maru_v204_record")):
+                    maru_v204_record(project_choice, "개선승인 풀자동화", status, f"결과 {len(auto_rows)}건", repo=f"{cfg.get('owner')}/{cfg.get('repo')}")
+            elif run_fullauto:
+                result_rows.append({"단계": "풀자동화 실행", "상태": "실패", "설명": "풀자동화 연결 함수 없음"})
+            else:
+                result_rows.append({"단계": "풀자동화 실행", "상태": "건너뜀", "설명": "체크하지 않음"})
+
+            st.success(f"{project_choice} 개선승인 처리 완료")
+            with st.expander("▶ 단계별 처리 결과", expanded=True):
+                maru_show_rows(result_rows)
+            with st.expander("▶ GitHub 명령 기록 상세", expanded=False):
+                maru_show_rows(gh_rows) if gh_rows else st.write("GitHub 기록 없음")
+            with st.expander("▶ 풀자동화 상세 결과", expanded=False):
+                maru_show_rows(auto_rows) if auto_rows else st.write("풀자동화 결과 없음")
+            if callable(globals().get("maru_v204_show_status")):
+                with st.expander("▶ 최근 반영 상태 다시 확인", expanded=True):
+                    maru_v204_show_status(project_choice)
+
+        except Exception as e:
+            if callable(globals().get("maru_v204_record")):
+                maru_v204_record(project_choice, "개선승인 자동처리", "오류", str(e), repo=f"{cfg.get('owner')}/{cfg.get('repo')}")
+            st.error(f"{project_choice} 개선승인 자동처리 오류: {e}")
+            with st.expander("▶ 오류 원본", expanded=False):
+                st.code(traceback.format_exc())
+
+def maru_v211_dedicated_improvement_center():
+    st.info("개선승인도 앱별 전용 칸으로 분리했습니다. 각 칸은 해당 저장소로만 처리됩니다.")
+    with st.expander("▶ AI 코드 생성기 개선승인", expanded=False):
+        maru_v211_improvement_box("AI 코드 생성기", "v211_ai")
+    with st.expander("▶ 경마앱 개선승인", expanded=False):
+        maru_v211_improvement_box("경마앱", "v211_kra")
+    with st.expander("▶ 토토앱 개선승인", expanded=False):
+        maru_v211_improvement_box("토토앱", "v211_toto")
+    with st.expander("▶ 개선 반영 기록 전체보기", expanded=False):
+        if callable(globals().get("maru_v204_show_all_status_center")):
+            maru_v204_show_all_status_center()
+        elif callable(globals().get("maru_v204_show_status")):
+            maru_v204_show_status()
+        else:
+            st.info("상태추적 함수가 없습니다.")
+# ===== /MARU V21.1 dedicated improvement approval center =====
+
+
+
+# ===== MARU V22 full menu classification preview approval =====
+def maru_v22_menu_catalog():
+    return [
+        {"번호": 1, "메뉴": "📋 기능", "분류": "안내", "주요역할": "전체 기능 설명", "대상앱": "공통", "반영방식": "읽기/안내"},
+        {"번호": 2, "메뉴": "📦 보관소", "분류": "저장", "주요역할": "업로드 파일/패치 결과 보관", "대상앱": "공통", "반영방식": "허브 저장"},
+        {"번호": 3, "메뉴": "🔁 연속자동화", "분류": "자동화", "주요역할": "반복 작업 흐름", "대상앱": "공통", "반영방식": "자동 실행"},
+        {"번호": 4, "메뉴": "🤖 코드생성", "분류": "생성", "주요역할": "코드 생성/수정 초안", "대상앱": "선택 앱", "반영방식": "승인 후 반영"},
+        {"번호": 5, "메뉴": "📁 등록", "분류": "입력", "주요역할": "파일/자료 등록", "대상앱": "선택 앱", "반영방식": "허브 저장"},
+        {"번호": 6, "메뉴": "📡 테스트", "분류": "검사", "주요역할": "문법/구조/실행 전 검사", "대상앱": "선택 앱", "반영방식": "검사 결과"},
+        {"번호": 7, "메뉴": "🧯 로그분석", "분류": "진단", "주요역할": "오류 로그 한글 분석", "대상앱": "선택 앱", "반영방식": "패치 후보 생성"},
+        {"번호": 8, "메뉴": "🖼️ 사진분석/명령", "분류": "입력", "주요역할": "화면/사진 기반 개선 명령", "대상앱": "선택 앱", "반영방식": "승인 후 처리"},
+        {"번호": 9, "메뉴": "✅ 패치", "분류": "수정", "주요역할": "오류/개선 패치 적용", "대상앱": "선택 앱", "반영방식": "승인 후 패치"},
+        {"번호": 10, "메뉴": "🔍 검사", "분류": "검사", "주요역할": "패치 후 재검사", "대상앱": "선택 앱", "반영방식": "통과/실패"},
+        {"번호": 11, "메뉴": "📦 버전", "분류": "관리", "주요역할": "버전/변경내역 확인", "대상앱": "공통", "반영방식": "기록"},
+        {"번호": 12, "메뉴": "🚀 GitHub 자동반영", "분류": "반영", "주요역할": "앱별 업그레이드 파일 생성/승인 후 반영", "대상앱": "AI/경마/토토", "반영방식": "승인 후 GitHub"},
+        {"번호": 13, "메뉴": "☁️ 구글시트", "분류": "외부저장", "주요역할": "시트/허브 연동", "대상앱": "공통", "반영방식": "외부 저장"},
+        {"번호": 14, "메뉴": "📚 기록", "분류": "기록", "주요역할": "업로드/반영/패치 이력", "대상앱": "공통", "반영방식": "조회"},
+        {"번호": 15, "메뉴": "📝 개선승인", "분류": "승인", "주요역할": "앱별 개선 명령 승인", "대상앱": "AI/경마/토토", "반영방식": "승인 후 처리"},
+        {"번호": 16, "메뉴": "♻️ 무승인패치루프", "분류": "자동수정", "주요역할": "허용 범위 내 반복 패치", "대상앱": "선택 앱", "반영방식": "제한 자동"},
+        {"번호": 17, "메뉴": "🤖 풀자동화", "분류": "자동화", "주요역할": "검사→패치→재검사→생성", "대상앱": "선택 앱", "반영방식": "승인 전 생성"},
+        {"번호": 18, "메뉴": "🗝️ 토큰진단", "분류": "권한", "주요역할": "GitHub 토큰/저장소 접근 확인", "대상앱": "공통", "반영방식": "권한검사"},
+        {"번호": 19, "메뉴": "🧰 전체진단", "분류": "전체검사", "주요역할": "전체 기능/키/탭 검사", "대상앱": "공통", "반영방식": "검사표"},
+        {"번호": 20, "메뉴": "🧭 메뉴전체점검", "분류": "분류검사", "주요역할": "전 메뉴 역할 분류/누락 확인", "대상앱": "공통", "반영방식": "검사표"},
+    ]
+
+def maru_v22_app_matrix():
+    return [
+        {"앱": "AI 코드 생성기", "저장소": "skytins3-png/maru-ai-code-maker", "주요 메뉴": "코드생성, 패치, 자동반영, 전체진단", "반영원칙": "승인 후 maru-ai-code-maker에만 반영"},
+        {"앱": "경마앱", "저장소": "skytins3-png/maru-kra-final-clean", "주요 메뉴": "경마 개선승인, 업그레이드/업로드, 로그분석", "반영원칙": "승인 후 maru-kra-final-clean에만 반영"},
+        {"앱": "토토앱", "저장소": "skytins3-png/skytoto-ai-hub", "주요 메뉴": "토토 개선승인, 업그레이드/업로드, 로그분석", "반영원칙": "승인 후 skytoto-ai-hub에만 반영"},
+    ]
+
+def maru_v22_preview_file():
+    return Path("project_vault") / "_maru_v22_preview.json"
+
+def maru_v22_save_pending_preview(project_choice, title, rows, output_zip="", report_path=""):
+    p = maru_v22_preview_file()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "created_at": maru_now_kst_text(),
+        "project_choice": project_choice,
+        "title": title,
+        "status": "승인대기",
+        "output_zip": str(output_zip),
+        "report_path": str(report_path),
+        "rows": rows,
+    }
+    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return p, data
+
+def maru_v22_load_pending_preview():
+    p = maru_v22_preview_file()
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+def maru_v22_show_menu_classification():
+    st.markdown("### 전 메뉴 20개 분류표")
+    rows = maru_v22_menu_catalog()
+    maru_show_rows(rows)
+
+    with st.expander("▶ 앱별 반영 대상 분리표", expanded=False):
+        maru_show_rows(maru_v22_app_matrix())
+
+def maru_v22_generate_preview_image(path="/mnt/data/MARU_V22_FULL_MENU_PREVIEW.png"):
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        W, H = 1500, 1150
+        img = Image.new("RGB", (W, H), "#f7f8fb")
+        d = ImageDraw.Draw(img)
+
+        def fp(size, bold=False):
+            candidates = [
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc" if bold else "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            ]
+            for c in candidates:
+                if c and Path(c).exists():
+                    return ImageFont.truetype(c, size)
+            return ImageFont.load_default()
+
+        def rr(xy, fill, outline="#d1d5db", r=18, w=1):
+            d.rounded_rectangle(xy, radius=r, fill=fill, outline=outline, width=w)
+
+        def tx(x, y, s, size=24, color="#111827", bold=False):
+            d.text((x, y), s, fill=color, font=fp(size, bold))
+
+        rr((40, 35, W-40, 145), "#111827", "#111827", 24)
+        tx(75, 60, "MARU V22 전 메뉴 분류 · 미리보기 · 승인 후 반영", 38, "#ffffff", True)
+        tx(75, 108, "검사 → 패치 → 업그레이드 파일 생성 → 미리보기 확인 → 승인 후 GitHub 반영", 22, "#d1d5db")
+
+        categories = [
+            ("안내/저장", "📋 기능  📦 보관소  📚 기록  📦 버전"),
+            ("검사/진단", "📡 테스트  🧯 로그분석  🔍 검사  🧰 전체진단  🧭 메뉴전체점검"),
+            ("입력/명령", "📁 등록  🖼️ 사진분석/명령  📝 개선승인"),
+            ("패치/자동화", "✅ 패치  🔁 연속자동화  ♻️ 무승인패치루프  🤖 풀자동화"),
+            ("반영/권한", "🚀 GitHub 자동반영  🗝️ 토큰진단  ☁️ 구글시트"),
+        ]
+        y = 185
+        for title, items in categories:
+            rr((55, y, W-55, y+105), "#ffffff", "#dbe3f0", 16)
+            tx(85, y+20, title, 27, "#111827", True)
+            tx(260, y+24, items, 23, "#374151")
+            y += 122
+
+        rr((55, y+10, W-55, y+285), "#ecfdf5", "#86efac", 20, 2)
+        tx(85, y+38, "승인 후 반영 구조", 32, "#065f46", True)
+        tx(85, y+92, "1. 각 앱 전용 칸에서 원본 ZIP/app.py 또는 개선 명령을 입력", 24, "#065f46")
+        tx(85, y+132, "2. 테스트와 자동패치 후 업그레이드 ZIP과 보고서를 생성", 24, "#065f46")
+        tx(85, y+172, "3. 미리보기와 변경내용을 확인", 24, "#065f46")
+        tx(85, y+212, "4. 승인 버튼을 누른 경우에만 해당 GitHub 저장소로 반영", 24, "#065f46")
+        tx(85, y+252, "AI 코드 생성기 / 경마앱 / 토토앱 저장소는 서로 섞이지 않게 분리", 24, "#065f46")
+        img.save(path)
+        return path
+    except Exception as e:
+        return str(e)
+
+def maru_v22_approval_center():
+    st.markdown("### 미리보기 확인 → 승인 후 반영")
+    pending = maru_v22_load_pending_preview()
+    if not pending:
+        st.info("아직 승인 대기 중인 업그레이드 결과가 없습니다. 먼저 V21 업그레이드 엔진에서 파일을 생성하세요.")
+    else:
+        st.success(f"승인대기: {pending.get('title')} / {pending.get('project_choice')}")
+        st.write("생성시각:", pending.get("created_at"))
+        st.write("업그레이드 ZIP:", pending.get("output_zip"))
+        st.write("보고서:", pending.get("report_path"))
+        with st.expander("▶ 생성 결과 상세", expanded=False):
+            maru_show_rows(pending.get("rows", []))
+
+        approve = st.checkbox("위 미리보기와 결과를 확인했고 GitHub 반영을 승인합니다.", key="v22_approve_checkbox")
+        if st.button("승인 후 GitHub 반영", type="primary", key="v22_approve_btn"):
+            if not approve:
+                st.error("승인 체크 후 반영할 수 있습니다.")
+            else:
+                st.warning("현재 승인 구조는 업그레이드 ZIP/보고서 확인 후 각 앱 전용 업로드 칸에서 반영하도록 안전하게 분리되어 있습니다.")
+                st.info("다음 단계: 🚀 GitHub 자동반영 메뉴의 해당 앱 전용 칸에서 업그레이드 ZIP을 올려 반영하세요.")
+
+def maru_v22_full_menu_ui():
+    st.info("전 메뉴 20개를 역할별로 분류하고, 생성 결과는 승인 후 반영하도록 확인합니다.")
+    with st.expander("▶ 전 메뉴 20개 분류표", expanded=True):
+        maru_v22_show_menu_classification()
+    with st.expander("▶ 결과 미리보기 이미지 생성", expanded=False):
+        if st.button("V22 미리보기 이미지 생성", key="v22_preview_img_btn"):
+            p = maru_v22_generate_preview_image()
+            st.success(f"미리보기 이미지 생성 완료: {p}")
+            try:
+                st.image(p)
+            except Exception:
+                st.write(p)
+    with st.expander("▶ 승인 후 반영", expanded=False):
+        maru_v22_approval_center()
+# ===== /MARU V22 full menu classification preview approval =====
+
 # ===== MARU V20.2 tabs-only UI =====
-st.set_page_config(page_title="MARU V21 테스트패치완성 AI", layout="wide")
-st.markdown("### MARU V21 테스트패치완성 AI")
+st.set_page_config(page_title="MARU V22 전메뉴분류 미리보기승인 AI", layout="wide")
+st.markdown("### MARU V22 전메뉴분류 미리보기승인 AI")
 st.caption("기본 화면에는 20개 메뉴만 보이고, 큰 기능은 해당 메뉴 안의 화살표로 숨겼습니다.")
 
 tab_labels = [
@@ -2992,7 +3276,7 @@ with tabs[9]:
 
 with tabs[10]:
     st.subheader("📦 버전")
-    st.success("현재 버전: MARU V21 테스트패치완성 AI")
+    st.success("현재 버전: MARU V22 전메뉴분류 미리보기승인 AI")
     st.write("한국시간:", maru_now_kst_text())
 
 with tabs[11]:
@@ -3009,9 +3293,7 @@ with tabs[13]:
 
 with tabs[14]:
     st.subheader("📝 개선승인")
-    maru_v20_command_ui()
-    with st.expander("▶ 최근 패치·개선·업로드 상태", expanded=False):
-        maru_v204_show_status()
+    maru_v211_dedicated_improvement_center()
 
 with tabs[15]:
     st.subheader("♻️ 무승인패치루프")
@@ -3042,6 +3324,7 @@ with tabs[18]:
 
 with tabs[19]:
     st.subheader("🧭 메뉴전체점검")
+    maru_v22_full_menu_ui()
     with st.expander("▶ 전체 메뉴·기능 검사", expanded=False):
         maru_v20_show_total_check()
 # ===== /MARU V20.2 tabs-only UI =====
