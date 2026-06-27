@@ -591,7 +591,7 @@ def maru_save_upload_to_vault(label, uploaded_file, api_key="", api_urls_text=""
         "project_name": MARU_PROJECT_PRESETS.get(label, dict()).get("project_name", label),
         "filename": filename,
         "api_key": api_key,
-        "api_urls": api_urls,
+        "api_urls": maru_clean_api_urls_for_project(label, api_urls),
         "src": str(src),
     }
     maru_write_vault_meta(label, meta)
@@ -1518,7 +1518,7 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V16 완성 안정화 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V17.1 한글로그 자가진단 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
 st.title("🧠 MARU V16 완성 안정화 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
@@ -2085,11 +2085,289 @@ def maru_full_auto_loop(mem_obj, label, repeat=5, do_github=True, github_token="
     return all_rows
 # ===== /MARU V15 full automation repair engine =====
 
+
+
+# ===== MARU V16.1 GitHub token diagnosis helpers =====
+def maru_secret_get_deep(*names, default=""):
+    try:
+        sec = st.secrets
+    except Exception:
+        return default
+    for name in names:
+        try:
+            val = sec.get(name, "")
+            if val:
+                return str(val).strip()
+        except Exception:
+            pass
+    for section in ["general", "github", "GITHUB", "secrets", "tokens", "api"]:
+        try:
+            obj = sec.get(section, {})
+            for name in names:
+                try:
+                    val = obj.get(name, "")
+                    if val:
+                        return str(val).strip()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    try:
+        for k in sec.keys():
+            try:
+                val = sec.get(k)
+                if isinstance(val, str) and ("github_pat_" in val or val.startswith("ghp_")):
+                    return val.strip()
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return default
+
+def get_github_token_from_secret():
+    return maru_secret_get_deep(
+        "GITHUB_TOKEN", "MARU_GITHUB_TOKEN", "github_token",
+        "Github_Token", "GITHUB_PAT", "GH_TOKEN", default=""
+    )
+
+def maru_mask_token(token):
+    token = str(token or "")
+    if not token:
+        return "없음"
+    if len(token) <= 12:
+        return token[:4] + "****"
+    return token[:10] + "..." + token[-4:]
+
+def maru_token_diagnosis():
+    token = get_github_token_from_secret()
+    return {
+        "detected": bool(token),
+        "masked": maru_mask_token(token),
+        "length": len(token) if token else 0,
+        "looks_like_github_token": bool(token.startswith("github_pat_") or token.startswith("ghp_")),
+        "checked_names": "GITHUB_TOKEN, MARU_GITHUB_TOKEN, github_token, Github_Token, GITHUB_PAT, GH_TOKEN",
+        "message": "GitHub 토큰 감지됨" if token else "Streamlit Secrets에서 GitHub 토큰을 찾지 못했습니다."
+    }
+
+def maru_test_github_token_access(owner="skytins3-png", repo="maru-ai-code-maker"):
+    token = get_github_token_from_secret()
+    if not token:
+        return {"ok": False, "status": "NO_TOKEN", "message": "GITHUB_TOKEN 미감지"}
+    try:
+        import requests
+        url = f"https://api.github.com/repos/{owner}/{repo}/contents/app.py"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+        r = requests.get(url, headers=headers, timeout=15)
+        if r.status_code == 200:
+            return {"ok": True, "status": 200, "message": f"{owner}/{repo} app.py 읽기 성공"}
+        if r.status_code == 401:
+            return {"ok": False, "status": 401, "message": "토큰이 틀렸거나 만료됨"}
+        if r.status_code == 403:
+            return {"ok": False, "status": 403, "message": "권한 부족. Contents 권한 확인 필요"}
+        if r.status_code == 404:
+            return {"ok": False, "status": 404, "message": "repo 접근 권한 없음 또는 저장소/파일명 불일치"}
+        return {"ok": False, "status": r.status_code, "message": r.text[:300]}
+    except Exception as e:
+        return {"ok": False, "status": "ERROR", "message": str(e)}
+# ===== /MARU V16.1 GitHub token diagnosis helpers =====
+
+
+
+# ===== MARU V16.2 always-visible status panel =====
+try:
+    with st.expander("🧭 MARU 상태판 / 토큰·저장소 빠른 확인", expanded=True):
+        diag_now = maru_token_diagnosis()
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            if diag_now.get("detected"):
+                st.success("GITHUB_TOKEN 감지됨")
+            else:
+                st.error("GITHUB_TOKEN 미감지")
+        with c2:
+            st.write("토큰:", diag_now.get("masked", "없음"))
+        with c3:
+            st.write("길이:", diag_now.get("length", 0))
+
+        st.caption("토큰 전체값은 표시하지 않습니다.")
+        if st.button("현재 AI 코드 생성기 저장소 접근 테스트", key="top_token_test_btn"):
+            res_top = maru_test_github_token_access("skytins3-png", "maru-ai-code-maker")
+            if res_top.get("ok"):
+                st.success(res_top.get("message"))
+            else:
+                st.error(res_top.get("message"))
+            st.json(res_top)
+
+        try:
+            st.info("정상 기준: GITHUB_TOKEN 감지됨 + 저장소 접근 테스트 status=200")
+        except Exception:
+            pass
+except Exception as e:
+    st.warning(f"상태판 표시 오류: {e}")
+# ===== /MARU V16.2 always-visible status panel =====
+
+
+
+# ===== MARU V17.1 safe Korean explanation + self diagnosis =====
+def maru_log_to_korean_summary(log_text):
+    log = str(log_text or "")
+    low = log.lower()
+    items = []
+    next_steps = []
+    risk = "정상"
+
+    def add(title, reason, action, level="주의"):
+        nonlocal risk
+        items.append({"문제": title, "원인": reason, "해야할일": action, "위험도": level})
+        next_steps.append(action)
+        if level == "높음":
+            risk = "오류"
+        elif level == "중간" and risk != "오류":
+            risk = "주의"
+
+    if "uvicorn server started" in low:
+        add("앱 서버 시작 성공", "Streamlit 서버가 정상적으로 켜졌습니다.", "앱 화면에서 기능을 확인하세요.", "정상")
+
+    if "traceback" in low:
+        add("Traceback 오류 발견", "앱 실행 중 파이썬 오류가 발생했습니다.", "오류 아래쪽 마지막 줄의 NameError/SyntaxError 등을 기준으로 패치해야 합니다.", "높음")
+
+    if "nameerror" in low:
+        m = re.search(r"NameError: name '([^']+)' is not defined", log)
+        missing = m.group(1) if m else "알 수 없는 이름"
+        add("NameError 발생", f"`{missing}` 함수/변수/import가 없습니다.", f"`{missing}`를 app.py에 보강해야 합니다.", "높음")
+
+    if "syntaxerror" in low or "indentationerror" in low:
+        add("문법/들여쓰기 오류", "괄호, 따옴표, 콜론, 들여쓰기 중 하나가 깨졌을 가능성이 큽니다.", "app.py 문법검사 후 해당 줄을 고쳐야 합니다.", "높음")
+
+    if "pd is not defined" in low or "pd.dataframe" in low:
+        add("pandas(pd) 누락", "표를 만들 때 pd를 쓰지만 pandas import가 빠졌습니다.", "표시 함수 안에서 pandas를 직접 import하도록 고쳐야 합니다.", "높음")
+
+    if "py_compile" in low and "not defined" in low:
+        add("py_compile 누락", "문법검사 모듈 import가 빠졌습니다.", "import py_compile을 추가해야 합니다.", "높음")
+
+    if "arrowinvalid" in low or "conversion failed for column" in low:
+        add("표 변환 경고", "표 컬럼에 숫자와 글자가 섞여 Streamlit 표 변환이 흔들렸습니다.", "표시 전 모든 값을 문자열로 바꿔야 합니다.", "중간")
+
+    if "github_token 없음" in log or "GITHUB_TOKEN 없음" in log or "no_token" in low:
+        add("GitHub 토큰 미감지", "Streamlit Secrets에서 GITHUB_TOKEN을 못 찾았습니다.", "Secrets에 GITHUB_TOKEN을 저장하고 앱을 재부팅하세요.", "중간")
+
+    if "status: 200" in low or '"status": 200' in low or "app.py 읽기 성공" in log:
+        add("GitHub 토큰 권한 정상", "GitHub API가 저장소 app.py를 읽었습니다.", "자동반영을 진행해도 됩니다.", "정상")
+
+    if "apis.data.go.kr" in log and "maru-ai-code-maker" in low:
+        add("프로젝트 설정 혼동", "AI 코드 생성기 쪽에 경마 공공데이터 URL이 섞여 보입니다.", "AI 코드 생성기에서는 API URL을 비우고, 경마앱 선택 시에만 공공데이터 URL을 쓰세요.", "중간")
+
+    if not items:
+        items.append({
+            "문제": "명확한 오류 없음",
+            "원인": "로그에 치명적인 오류 패턴이 보이지 않습니다.",
+            "해야할일": "앱 화면에서 기능이 정상 동작하는지 확인하세요.",
+            "위험도": "정상",
+        })
+        next_steps.append("추가 패치 없이 기능 확인을 진행하세요.")
+
+    return {"위험도": risk, "쉬운설명": items, "다음할일": list(dict.fromkeys(next_steps))}
+
+def maru_show_korean_log_summary(log_text):
+    summary = maru_log_to_korean_summary(log_text)
+    if summary.get("위험도") == "오류":
+        st.error("한글 로그분석: 오류가 있습니다.")
+    elif summary.get("위험도") == "주의":
+        st.warning("한글 로그분석: 주의할 내용이 있습니다.")
+    else:
+        st.success("한글 로그분석: 치명적인 오류가 보이지 않습니다.")
+
+    for idx, item in enumerate(summary.get("쉬운설명", []), 1):
+        with st.container(border=True):
+            st.markdown(f"**{idx}. {item.get('문제','')}**")
+            st.write("원인:", item.get("원인", ""))
+            st.write("해야 할 일:", item.get("해야할일", ""))
+            st.write("위험도:", item.get("위험도", ""))
+
+    st.markdown("### 다음에 할 일")
+    for step in summary.get("다음할일", []):
+        st.write("✅", step)
+
+    with st.expander("개발자용 JSON 보기", expanded=False):
+        st.json(summary)
+
+def maru_full_self_diagnosis_rows():
+    rows = []
+    def add(name, ok, detail=""):
+        rows.append({"항목": name, "상태": "정상" if ok else "확인필요", "설명": detail})
+    g = globals()
+    required = [
+        "save_memory", "maru_now_kst_text", "maru_show_rows",
+        "maru_token_diagnosis", "maru_test_github_token_access",
+        "maru_repo_project_guard", "maru_should_skip_duplicate_upload",
+    ]
+    for fn in required:
+        add(f"필수 함수: {fn}", fn in g and callable(g.get(fn)), "없으면 해당 기능에서 오류가 날 수 있습니다.")
+    try:
+        diag = maru_token_diagnosis()
+        add("GITHUB_TOKEN 감지", bool(diag.get("detected")), diag.get("message", ""))
+    except Exception as e:
+        add("GITHUB_TOKEN 감지", False, str(e))
+    try:
+        now_text = maru_now_kst_text()
+        add("한국시간 함수", "KST" in now_text, now_text)
+    except Exception as e:
+        add("한국시간 함수", False, str(e))
+    add("현재 app.py 문법", True, "현재 앱이 실행 중이면 기본 문법은 통과한 상태입니다.")
+    return rows
+
+def maru_clean_api_urls_for_project(project_choice, api_urls):
+    name = str(project_choice or "")
+    text = str(api_urls or "")
+    if ("AI 코드" in name or "code" in name.lower() or "maker" in name.lower()) and ("apis.data.go.kr" in text or "sportmonks" in text.lower()):
+        return ""
+    return text
+
+# 화면 상단 독립 진단판: 기존 탭 내부를 건드리지 않음
+try:
+    with st.expander("🧰 전체 자가진단 / 토큰 / 한글 로그 설명", expanded=False):
+        st.markdown("### 1) 전체 자가진단")
+        try:
+            maru_show_rows(maru_full_self_diagnosis_rows())
+        except Exception:
+            st.write(maru_full_self_diagnosis_rows())
+
+        st.markdown("### 2) GitHub 토큰 자가진단")
+        try:
+            diag = maru_token_diagnosis()
+            if diag.get("detected"):
+                st.success("GITHUB_TOKEN 감지됨")
+            else:
+                st.error("GITHUB_TOKEN 미감지")
+            st.json(diag)
+        except Exception as e:
+            st.error(f"토큰진단 오류: {e}")
+
+        if st.button("AI 코드 생성기 저장소 접근 테스트", key="v17_1_top_repo_test"):
+            res = maru_test_github_token_access("skytins3-png", "maru-ai-code-maker")
+            if res.get("ok"):
+                st.success(res.get("message"))
+            else:
+                st.error(res.get("message"))
+            st.json(res)
+
+        st.markdown("### 3) 한글 로그 설명")
+        v17_log_text = st.text_area("로그를 붙여넣으면 한글로 설명합니다.", height=160, key="v17_1_korean_log_text")
+        if st.button("한글로 로그 설명", key="v17_1_korean_log_btn"):
+            maru_show_korean_log_summary(v17_log_text)
+except Exception as e:
+    st.warning(f"전체 자가진단판 표시 오류: {e}")
+# ===== /MARU V17.1 safe Korean explanation + self diagnosis =====
+
 tabs = st.tabs(["📋 기능",
     "📦 보관소",
     "🔁 연속자동화", "🤖 코드생성", "📁 등록", "📡 테스트", "🧯 로그분석", "🖼️ 사진분석/명령", "✅ 패치", "🔍 검사", "📦 버전", "🚀 GitHub 자동반영", "☁️ 구글시트", "📚 기록"    "📝 개선승인",
     "♻️ 무승인패치루프",
     "🤖 풀자동화",
+    "🗝️ 토큰진단",
 ])
 
 with tabs[0]:
@@ -2741,3 +3019,56 @@ with tabs[-1]:
     st.write("- 승인 후에는 패치마다 추가 승인 없이 자동수정/재테스트")
     st.write("- 자동구매/자동결제는 계속 차단")
     st.write("- 위험한 코드 추정 수정은 무리하게 밀어붙이지 않고 멈춤")
+
+
+with tabs[-1]:
+    st.subheader("🗝️ GitHub 토큰 진단")
+    st.caption("토큰 전체값은 표시하지 않고 감지 여부와 권한만 확인합니다.")
+    diag = maru_token_diagnosis()
+    if diag.get("detected"):
+        st.success("GITHUB_TOKEN 감지됨")
+    else:
+        st.error("GITHUB_TOKEN 미감지")
+    st.json(diag)
+
+    st.markdown("### 저장소 접근 테스트")
+    test_repo = st.selectbox("테스트할 저장소", ["maru-ai-code-maker", "maru-kra-final-clean", "skytoto-ai-hub"], key="token_diag_repo")
+    if st.button("GitHub 토큰 권한 테스트", type="primary", width="stretch"):
+        res = maru_test_github_token_access("skytins3-png", test_repo)
+        if res.get("ok"):
+            st.success(res.get("message"))
+        else:
+            st.error(res.get("message"))
+        st.json(res)
+
+    st.info("정상 기준: detected=true, looks_like_github_token=true, 저장소 접근 테스트 status=200")
+
+
+# ===== MARU V16.2 guaranteed token diagnosis tab content =====
+try:
+    with tabs[-1]:
+        st.subheader("🗝️ GitHub 토큰 진단")
+        st.caption("이 탭이 비어 보이면 위쪽 'MARU 상태판'을 먼저 확인하세요. 토큰 값은 전체 표시하지 않습니다.")
+        diag = maru_token_diagnosis()
+        if diag.get("detected"):
+            st.success("GITHUB_TOKEN 감지됨")
+        else:
+            st.error("GITHUB_TOKEN 미감지")
+        st.json(diag)
+
+        test_repo_v162 = st.selectbox(
+            "테스트할 저장소",
+            ["maru-ai-code-maker", "maru-kra-final-clean", "skytoto-ai-hub"],
+            key="token_diag_repo_v162"
+        )
+        if st.button("GitHub 토큰 권한 테스트", type="primary", key="token_diag_btn_v162"):
+            res = maru_test_github_token_access("skytins3-png", test_repo_v162)
+            if res.get("ok"):
+                st.success(res.get("message"))
+            else:
+                st.error(res.get("message"))
+            st.json(res)
+        st.info("정상 기준: detected=true, looks_like_github_token=true, 저장소 접근 테스트 status=200")
+except Exception as e:
+    st.warning(f"토큰진단 탭 표시 오류: {e}")
+# ===== /MARU V16.2 guaranteed token diagnosis tab content =====
