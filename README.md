@@ -410,3 +410,13 @@ TOTO_API_KEY = "토토_API_KEY"
 - GitHub 자동반영
 - 사진 등록 자동반영
 - 한글 결과 표시
+
+
+## V19.1 로딩수정판
+
+수정:
+- 원클릭 자동반영 센터가 상단과 탭에 중복 표시되던 문제 제거
+- 같은 file_uploader/button key 중복으로 Streamlit 로딩이 멈출 수 있는 문제 방지
+- 원클릭 센터는 상단에 한 번만 표시
+- REPORT.json / MARU_V*_REPORT 파일은 GitHub 자동반영에서 제외
+- 기존 메뉴는 유지

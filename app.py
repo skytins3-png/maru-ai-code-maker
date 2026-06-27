@@ -1518,7 +1518,7 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V19 원클릭 자동반영 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V19.1 로딩수정 원클릭 자동반영 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
 st.title("🧠 MARU V18.1 탭오류 복구 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
@@ -3060,6 +3060,10 @@ def maru_v19_upload_folder_to_github(src, cfg, commit_msg):
         rel = str(p.relative_to(src)).replace("\\", "/")
         if rel.startswith(".git/") or "__pycache__" in rel or rel.endswith(".pyc") or ".bak_" in rel:
             continue
+        if rel.endswith("_REPORT.json") or "REPORT" in rel or rel.startswith("MARU_V"):
+            continue
+        if rel.lower() in ["maru_v19_one_click_report.json", "maru_v18_2_real_tab_index_report.json", "maru_v18_menu_audit_report.json"]:
+            continue
         rows.append(maru_v19_upload_file_to_github(
             cfg["owner"], cfg["repo"], cfg["branch"], token, p, rel, commit_msg
         ))
@@ -3202,6 +3206,14 @@ def maru_v19_one_click_center():
 
 
 
+
+# ===== MARU V19.1 loading fix notice =====
+try:
+    st.info("V19.1 로딩 수정판: 원클릭 자동반영 센터는 중복 없이 한 번만 표시됩니다.")
+except Exception:
+    pass
+# ===== /MARU V19.1 loading fix notice =====
+
 # ===== MARU V19 visible one-click center panel =====
 try:
     maru_v19_one_click_center()
@@ -3221,7 +3233,6 @@ tabs = st.tabs(["📋 기능",
     "🗝️ 토큰진단",
     "🧰 전체진단",
     "🧭 메뉴전체점검",
-    "🚀 원클릭반영",
 ])
 
 with tabs[0]:
@@ -4016,10 +4027,4 @@ except Exception as e:
 # ===== /MARU V18.1 bottom unified operation center =====
 
 
-# ===== MARU V19 one-click tab content =====
-try:
-    with tabs[20]:
-        maru_v19_one_click_center()
-except Exception as e:
-    st.warning(f"원클릭반영 탭 표시 오류: {e}")
-# ===== /MARU V19 one-click tab content =====
+# MARU V19.1: 원클릭 센터는 중복 key 방지를 위해 상단에 한 번만 표시합니다.
