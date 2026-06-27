@@ -1,3 +1,4 @@
+import hashlib
 import shutil
 import py_compile
 
@@ -1492,7 +1493,7 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V15.2 풀자동화 모듈보강 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V15.3 표안정화 풀자동화 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
 st.title("🧠 MARU V14.4 KST 보관소 안정화 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
@@ -1665,6 +1666,64 @@ def maru_run_no_approval_patch_loop(mem_obj, label, repeat=3, do_github=True, gi
 # ===== /MARU V14.3 no-extra-approval auto patch loop =====
 
 
+
+
+
+# ===== MARU V15.3 Arrow-safe dataframe + duplicate guard =====
+def maru_safe_dataframe_rows(rows):
+    """Streamlit/Arrow 표 변환 오류 방지: mixed type 컬럼을 문자열로 통일."""
+    try:
+        safe_rows = []
+        for row in rows or []:
+            if isinstance(row, dict):
+                safe_rows.append({str(k): "" if v is None else str(v) for k, v in row.items()})
+            else:
+                safe_rows.append({"value": str(row)})
+        return pd.DataFrame(safe_rows)
+    except Exception:
+        return pd.DataFrame([{"error": "표 변환 실패", "detail": str(rows)}])
+
+def maru_show_rows(rows, height=None):
+    df = maru_safe_dataframe_rows(rows)
+    if height:
+        st.dataframe(df, width="stretch", height=height)
+    else:
+        st.dataframe(df, width="stretch")
+
+def maru_folder_fingerprint(src):
+    """같은 내용 GitHub 자동반영 반복 방지용 지문."""
+    try:
+        src = Path(src)
+        h = hashlib.sha256()
+        for p in sorted(src.rglob("*")):
+            if p.is_file():
+                name = str(p.relative_to(src)).replace("\\", "/")
+                if ".git/" in name or ".bak_" in name:
+                    continue
+                h.update(name.encode("utf-8", "ignore"))
+                try:
+                    h.update(p.read_bytes())
+                except Exception:
+                    h.update(str(p.stat().st_mtime).encode())
+        return h.hexdigest()
+    except Exception:
+        return ""
+
+def maru_should_skip_duplicate_upload(mem_obj, project_name, fingerprint):
+    try:
+        key = f"last_github_fingerprint::{project_name}"
+        return bool(fingerprint and mem_obj.get(key) == fingerprint)
+    except Exception:
+        return False
+
+def maru_mark_uploaded_fingerprint(mem_obj, project_name, fingerprint):
+    try:
+        if fingerprint:
+            mem_obj[f"last_github_fingerprint::{project_name}"] = fingerprint
+            save_memory(mem_obj)
+    except Exception:
+        pass
+# ===== /MARU V15.3 Arrow-safe dataframe + duplicate guard =====
 
 # ===== MARU V15 full automation repair engine =====
 def maru_read_text_safe(path):
@@ -1875,17 +1934,23 @@ def maru_full_auto_loop(mem_obj, label, repeat=5, do_github=True, github_token="
         branch = gh.get("branch", "main")
         token = github_token or (get_github_token_from_secret() if "get_github_token_from_secret" in globals() else "")
         if not token:
-            all_rows.append({"round": "final", "step": "GitHub 자동반영", "status": "대기", "detail": "GITHUB_TOKEN 없음"})
+            all_rows.append({"round": "최종", "step": "GitHub 자동반영", "status": "대기", "detail": "GITHUB_TOKEN 없음"})
         else:
             try:
-                upload_rows = gh_upload_folder(src, owner, repo, branch, token, commit_msg, "")
-                ok_count = sum(1 for r in upload_rows if r.get("ok"))
-                fail_count = sum(1 for r in upload_rows if not r.get("ok"))
-                all_rows.append({"round": "final", "step": "GitHub 자동반영", "status": "성공" if fail_count == 0 else "일부실패", "detail": f"성공 {ok_count}, 실패 {fail_count}"})
+                fingerprint = maru_folder_fingerprint(src)
+                if maru_should_skip_duplicate_upload(mem_obj, project_name, fingerprint):
+                    all_rows.append({"round": "최종", "step": "GitHub 자동반영", "status": "중복스킵", "detail": "같은 내용이라 자동반영을 반복하지 않았습니다."})
+                else:
+                    upload_rows = gh_upload_folder(src, owner, repo, branch, token, commit_msg, "")
+                    ok_count = sum(1 for r in upload_rows if r.get("ok"))
+                    fail_count = sum(1 for r in upload_rows if not r.get("ok"))
+                    if fail_count == 0:
+                        maru_mark_uploaded_fingerprint(mem_obj, project_name, fingerprint)
+                    all_rows.append({"round": "최종", "step": "GitHub 자동반영", "status": "성공" if fail_count == 0 else "일부실패", "detail": f"성공 {ok_count}, 실패 {fail_count}"})
             except Exception as e:
-                all_rows.append({"round": "final", "step": "GitHub 자동반영", "status": "실패", "detail": str(e)})
+                all_rows.append({"round": "최종", "step": "GitHub 자동반영", "status": "실패", "detail": str(e)})
     elif not final_ok:
-        all_rows.append({"round": "final", "step": "풀자동화 종료", "status": "수동확인필요", "detail": "안전 자동수정 범위를 넘어선 오류입니다. 로그 기반 코드패치 필요"})
+        all_rows.append({"round": "최종", "step": "풀자동화 종료", "status": "수동확인필요", "detail": "안전 자동수정 범위를 넘어선 오류입니다. 로그 기반 코드패치 필요"})
     return all_rows
 # ===== /MARU V15 full automation repair engine =====
 
@@ -2027,7 +2092,7 @@ with tabs[2]:
             # 테스트 실패면 무한 반복하지 않고 멈춤
             if any(r.get("step") == "재패치 대기" and r.get("status") == "필요" for r in rows):
                 break
-        st.dataframe(all_rows, width="stretch")
+        maru_show_rows(all_rows)
         st.info("테스트 실패가 나오면 로그분석 힌트를 패치 탭으로 넘겨 다시 패치한 뒤, 같은 루프를 재실행하는 구조입니다.")
 
     st.divider()
@@ -2503,7 +2568,7 @@ with tabs[-1]:
             github_token=auto_token,
             commit_msg=auto_msg,
         )
-        st.dataframe(rows, width="stretch")
+        maru_show_rows(rows)
 
     st.divider()
     st.markdown("### 승인된 요구사항 + 무승인 루프 연결")
@@ -2534,7 +2599,7 @@ with tabs[-1]:
     st.info("자동수정 범위: 누락파일 생성, NameError helper 삽입, KST/save_memory/default_api 함수 보정, 안전한 문법오류 보정, 재테스트 반복. 위험한 코드 추정 수정은 멈추고 로그를 남깁니다.")
     if st.button("풀자동화 시작", type="primary", width="stretch"):
         rows = maru_full_auto_loop(m, fa_project, repeat=int(fa_repeat), do_github=fa_github, github_token=fa_token, commit_msg=fa_msg)
-        st.dataframe(rows, width="stretch")
+        maru_show_rows(rows)
         if rows and rows[-1].get("step") == "GitHub 자동반영":
             st.success("풀자동화 루프 완료")
         elif rows and rows[-1].get("status") == "수동확인필요":

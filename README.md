@@ -245,3 +245,14 @@ TOTO_API_KEY = "토토_API_KEY"
 - `maru_compile_app_file()` 내부에서도 `py_compile`를 직접 import하도록 이중 안전 처리
 - V15.1 `use_container_width` 경고 제거 유지
 - V15 풀자동화 / 보관소 / 개선승인 / 무승인 패치루프 / GitHub 자동반영 유지
+
+
+## V15.3 결과표 안정화 + 중복반영 방지
+
+- Streamlit/Arrow dataframe 변환 경고 수정
+- `round` 컬럼에 숫자와 문자열이 섞여도 표시 전 문자열로 통일
+- 풀자동화 결과표 `maru_show_rows()`로 안전 표시
+- GitHub 자동반영 같은 내용 반복 업로드 방지
+- V15.2 `py_compile` 보강 유지
+- V15.1 `use_container_width` 경고 제거 유지
+- V15 풀자동화 / 보관소 / 개선승인 / 무승인 패치루프 유지
