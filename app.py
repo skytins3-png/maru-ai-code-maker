@@ -1,3 +1,28 @@
+
+# ===== MARU V16 complete stability imports =====
+import os
+import io
+import re
+import json
+import time
+import zipfile
+import shutil
+import hashlib
+import traceback
+import subprocess
+import py_compile
+from pathlib import Path
+from datetime import datetime, timezone, timedelta
+try:
+    import pandas as pd
+except Exception:
+    pd = None
+try:
+    import numpy as np
+except Exception:
+    np = None
+# ===== /MARU V16 complete stability imports =====
+
 import hashlib
 import shutil
 import py_compile
@@ -1493,9 +1518,9 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V15.3 표안정화 풀자동화 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V16 완성 안정화 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU V14.4 KST 보관소 안정화 AI")
+st.title("🧠 MARU V16 완성 안정화 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 
@@ -1669,36 +1694,92 @@ def maru_run_no_approval_patch_loop(mem_obj, label, repeat=3, do_github=True, gi
 
 
 
-# ===== MARU V15.3 Arrow-safe dataframe + duplicate guard =====
-def maru_safe_dataframe_rows(rows):
-    """Streamlit/Arrow 표 변환 오류 방지: mixed type 컬럼을 문자열로 통일."""
+
+
+
+
+
+
+
+
+# ===== MARU V16 complete stability helpers =====
+try:
+    KST
+except NameError:
+    KST = timezone(timedelta(hours=9))
+
+def maru_now_kst():
     try:
-        safe_rows = []
+        return datetime.now(KST)
+    except Exception:
+        return datetime.now(timezone(timedelta(hours=9)))
+
+def maru_now_kst_text():
+    return maru_now_kst().strftime("%Y-%m-%d %H:%M:%S KST")
+
+def save_memory(mem_obj):
+    """어떤 탭에서 호출해도 메모리 저장 때문에 앱이 죽지 않게 하는 최종 호환 저장 함수."""
+    try:
+        target = globals().get("MEM", None)
+        if target is None:
+            target = Path(__file__).parent / "ai_memory.json"
+        Path(target).write_text(json.dumps(mem_obj, ensure_ascii=False, indent=2), encoding="utf-8")
+        return True
+    except Exception as e:
+        try:
+            st.warning(f"메모리 저장 실패: {e}")
+        except Exception:
+            pass
+        return False
+
+def maru_safe_dataframe_rows(rows):
+    """표 변환 최종 안전 처리. pandas/Arrow/pd 전역 누락으로 앱이 죽지 않게 함."""
+    safe_rows = []
+    try:
         for row in rows or []:
             if isinstance(row, dict):
                 safe_rows.append({str(k): "" if v is None else str(v) for k, v in row.items()})
             else:
-                safe_rows.append({"value": str(row)})
-        return pd.DataFrame(safe_rows)
+                safe_rows.append({"value": "" if row is None else str(row)})
+    except Exception as e:
+        safe_rows = [{"error": "표 변환 준비 실패", "detail": str(e)}]
+
+    try:
+        import pandas as _maru_pd
+        return _maru_pd.DataFrame(safe_rows).astype(str)
     except Exception:
-        return pd.DataFrame([{"error": "표 변환 실패", "detail": str(rows)}])
+        return safe_rows
 
 def maru_show_rows(rows, height=None):
-    df = maru_safe_dataframe_rows(rows)
-    if height:
-        st.dataframe(df, width="stretch", height=height)
-    else:
-        st.dataframe(df, width="stretch")
+    """결과표 표시 최종 안전 함수."""
+    data = maru_safe_dataframe_rows(rows)
+    try:
+        if hasattr(data, "astype"):
+            if height:
+                st.dataframe(data, width="stretch", height=height)
+            else:
+                st.dataframe(data, width="stretch")
+        else:
+            st.json(data)
+    except Exception as e:
+        try:
+            st.warning(f"결과표 표시 실패: {e}")
+            st.json(data)
+        except Exception:
+            try:
+                st.write(str(data))
+            except Exception:
+                pass
 
 def maru_folder_fingerprint(src):
-    """같은 내용 GitHub 자동반영 반복 방지용 지문."""
+    """같은 파일을 GitHub에 반복 자동반영하지 않기 위한 지문."""
     try:
         src = Path(src)
         h = hashlib.sha256()
         for p in sorted(src.rglob("*")):
             if p.is_file():
                 name = str(p.relative_to(src)).replace("\\", "/")
-                if ".git/" in name or ".bak_" in name:
+                if ".git/" in name or ".bak_" in name or "__pycache__" in name:
                     continue
                 h.update(name.encode("utf-8", "ignore"))
                 try:
@@ -1723,7 +1804,53 @@ def maru_mark_uploaded_fingerprint(mem_obj, project_name, fingerprint):
             save_memory(mem_obj)
     except Exception:
         pass
-# ===== /MARU V15.3 Arrow-safe dataframe + duplicate guard =====
+
+def maru_detect_app_identity(src):
+    """업로드 대상 파일이 어떤 앱 계열인지 대략 판별."""
+    try:
+        app_file = Path(src) / "app.py"
+        text = app_file.read_text(encoding="utf-8", errors="ignore")[:20000]
+        if "코드 생성" in text or "AI 코드 생성기" in text or "code-maker" in text or "보관소" in text:
+            return "AI 코드 생성기"
+        if "경마" in text or "KRA" in text or "마사회" in text or "horse" in text:
+            return "경마앱"
+        if "토토" in text or "SPORTMONKS" in text or "fixture" in text:
+            return "토토앱"
+    except Exception:
+        pass
+    return "알수없음"
+
+def maru_repo_project_guard(label, owner, repo, src):
+    """경마 repo에 AI 생성기 파일이 올라가는 사고 차단."""
+    try:
+        identity = maru_detect_app_identity(src)
+        repo_text = f"{owner}/{repo}".lower()
+        if "maru-kra-final-clean" in repo_text and identity == "AI 코드 생성기":
+            return False, "차단: 경마앱 저장소에 AI 코드 생성기 파일을 올리려 했습니다."
+        if "maru-ai-code-maker" in repo_text and identity == "경마앱":
+            return False, "차단: AI 코드 생성기 저장소에 경마앱 파일을 올리려 했습니다."
+        if "skytoto" in repo_text and identity == "경마앱":
+            return False, "차단: 토토앱 저장소에 경마앱 파일을 올리려 했습니다."
+        return True, f"대상 확인 통과: {identity}"
+    except Exception as e:
+        return False, f"저장소 안전검사 실패: {e}"
+
+def maru_compile_app_file(app_file):
+    try:
+        import py_compile as _pc
+        _pc.compile(str(app_file), doraise=True)
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+def maru_compile_project(src):
+    try:
+        app_file = Path(src) / "app.py"
+        return maru_compile_app_file(app_file)
+    except Exception as e:
+        return False, str(e)
+
+# ===== /MARU V16 complete stability helpers =====
 
 # ===== MARU V15 full automation repair engine =====
 def maru_read_text_safe(path):
@@ -1937,6 +2064,10 @@ def maru_full_auto_loop(mem_obj, label, repeat=5, do_github=True, github_token="
             all_rows.append({"round": "최종", "step": "GitHub 자동반영", "status": "대기", "detail": "GITHUB_TOKEN 없음"})
         else:
             try:
+                guard_ok, guard_msg = maru_repo_project_guard(label, owner, repo, src)
+                if not guard_ok:
+                    all_rows.append({"round": "최종", "step": "GitHub 자동반영", "status": "차단", "detail": guard_msg})
+                    return all_rows
                 fingerprint = maru_folder_fingerprint(src)
                 if maru_should_skip_duplicate_upload(mem_obj, project_name, fingerprint):
                     all_rows.append({"round": "최종", "step": "GitHub 자동반영", "status": "중복스킵", "detail": "같은 내용이라 자동반영을 반복하지 않았습니다."})

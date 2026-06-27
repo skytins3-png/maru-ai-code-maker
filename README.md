@@ -256,3 +256,45 @@ TOTO_API_KEY = "토토_API_KEY"
 - V15.2 `py_compile` 보강 유지
 - V15.1 `use_container_width` 경고 제거 유지
 - V15 풀자동화 / 보관소 / 개선승인 / 무승인 패치루프 유지
+
+
+## V15.4 표 표시 긴급 안정화
+
+- `NameError: pd is not defined` 수정
+- 표 표시 함수가 전역 `pd`에 의존하지 않도록 변경
+- 함수 안에서 `import pandas as _maru_pd` 직접 수행
+- pandas/Arrow 실패 시 `st.json` 또는 `st.write`로 fallback
+- 결과표 표시 때문에 앱이 죽지 않도록 방어 처리
+- V15.3 중복 GitHub 자동반영 방지 유지
+- V15.2 py_compile 보강 유지
+- V15 풀자동화 / 보관소 / 개선승인 / 무승인 패치루프 유지
+
+
+## V16 완성 안정화판
+
+단일 오류 땜빵이 아니라 전체 안정화 보강판입니다.
+
+### 안정화 내용
+- 필수 import 전부 보강: os/io/re/json/time/zipfile/shutil/hashlib/traceback/subprocess/py_compile/Path/datetime/pandas/numpy
+- `KST` 누락 방지
+- `save_memory` 누락 방지
+- `pd` 누락 방지
+- `py_compile` 누락 방지
+- 표 표시 실패 시 앱이 죽지 않도록 `maru_show_rows()` 최종 방어
+- `use_container_width` 제거 유지
+- GitHub 자동반영 중복 반복 방지
+- 경마앱 저장소에 AI 코드 생성기 파일이 올라가는 사고 차단
+- 문법검사 `py_compile` 통과 확인
+
+### 유지 기능
+- V15 풀자동화
+- 프로젝트 보관소
+- 개선승인
+- 승인 후 무승인 패치루프
+- 자동 테스트
+- 로그분석
+- GitHub 자동반영
+- 구글시트
+- 사진분석/명령
+- 토큰/API 자동감지
+- 자동구매/자동결제 차단
