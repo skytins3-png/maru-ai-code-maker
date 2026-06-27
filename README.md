@@ -236,3 +236,12 @@ TOTO_API_KEY = "토토_API_KEY"
 - 프로젝트 보관소 유지
 - 개선승인 / 무승인 패치루프 / 로그분석 / GitHub 자동반영 유지
 - 자동구매/자동결제 차단 유지
+
+
+## V15.2 풀자동화 모듈 보강
+
+- `NameError: py_compile is not defined` 수정
+- 풀자동화 엔진 필수 모듈 보강: `py_compile`, `re`, `shutil`, `json`, `Path`
+- `maru_compile_app_file()` 내부에서도 `py_compile`를 직접 import하도록 이중 안전 처리
+- V15.1 `use_container_width` 경고 제거 유지
+- V15 풀자동화 / 보관소 / 개선승인 / 무승인 패치루프 / GitHub 자동반영 유지
