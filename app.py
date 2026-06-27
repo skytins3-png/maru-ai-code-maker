@@ -1,3 +1,5 @@
+import shutil
+import py_compile
 
 import streamlit as st
 
@@ -1490,7 +1492,7 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V15.1 경고제거 풀자동화 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V15.2 풀자동화 모듈보강 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
 st.title("🧠 MARU V14.4 KST 보관소 안정화 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
@@ -1679,10 +1681,14 @@ def maru_write_text_safe(path, text):
 
 def maru_compile_app_file(app_file):
     try:
+        import py_compile
         py_compile.compile(str(app_file), doraise=True)
         return True, ""
     except Exception as e:
         return False, str(e)
+
+def maru_compile_app(app_file):
+    return maru_compile_app_file(app_file)
 
 def maru_ensure_required_files(src, project_name="MARU Project"):
     src = Path(src)
