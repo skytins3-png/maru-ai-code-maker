@@ -7,7 +7,7 @@ import json, re, os, zipfile, shutil, base64, traceback, py_compile, ast
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
-APP_VERSION = "20.2-tabs-only-clean"
+APP_VERSION = "21.0-test-patch-upgrade"
 KST = timezone(timedelta(hours=9))
 
 def maru_now_kst_text():
@@ -2350,13 +2350,20 @@ def maru_v20_project_config(choice):
     p, r = mapping.get(choice, mapping["AI 코드 생성기"])
     return {"project": p, "owner": "skytins3-png", "repo": r, "branch": "main", "app_url": ""}
 
-def maru_v20_basic_repo_test_ui():
-    st.write("GitHub 자동반영 메뉴 안의 원클릭 자동반영 기능을 열어 사용하세요.")
-    if callable(globals().get("maru_v19_one_click_center")):
-        with st.expander("▶ 원클릭 ZIP/app.py·사진 자동반영", expanded=False):
-            maru_v19_one_click_center()
-    else:
-        st.info("원클릭 자동반영 함수가 없습니다.")
+def maru_v203_dedicated_upload_center():
+    st.info("앱별 전용 업로드 칸입니다. V21 엔진은 실제 업그레이드 ZIP을 생성합니다.")
+    with st.expander("▶ AI 코드 생성기 전용 업그레이드/업로드", expanded=False):
+        maru_v21_engine_ui("AI 코드 생성기")
+        st.divider()
+        maru_v203_fixed_upload_box("AI 코드 생성기", "v203_ai")
+    with st.expander("▶ 경마앱 전용 업그레이드/업로드", expanded=False):
+        maru_v21_engine_ui("경마앱")
+        st.divider()
+        maru_v203_fixed_upload_box("경마앱", "v203_kra")
+    with st.expander("▶ 토토앱 전용 업그레이드/업로드", expanded=False):
+        maru_v21_engine_ui("토토앱")
+        st.divider()
+        maru_v203_fixed_upload_box("토토앱", "v203_toto")
 
 def maru_v20_command_ui():
     if callable(globals().get("maru_v195_command_workflow_center")):
@@ -2395,9 +2402,518 @@ def maru_v20_show_total_check():
 
 
 
+
+
+
+
+# ===== MARU V20.4 upload/status tracking helpers =====
+def maru_v204_status_file():
+    p = Path("project_vault") / "_maru_upload_status.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
+def maru_v204_load_status():
+    p = maru_v204_status_file()
+    if not p.exists():
+        return {"events": [], "projects": {}}
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {"events": [], "projects": {}}
+
+def maru_v204_save_status(data):
+    p = maru_v204_status_file()
+    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return p
+
+def maru_v204_record(project_choice, event_type, status, detail="", file_name="", repo="", path=""):
+    data = maru_v204_load_status()
+    cfg = maru_v20_project_config(project_choice)
+    event = {
+        "time": maru_now_kst_text(),
+        "project_choice": project_choice,
+        "project": cfg.get("project"),
+        "repo": repo or f"{cfg.get('owner')}/{cfg.get('repo')}",
+        "event_type": event_type,
+        "status": status,
+        "file_name": file_name,
+        "detail": str(detail),
+        "path": str(path),
+    }
+    data.setdefault("events", []).insert(0, event)
+    data["events"] = data["events"][:200]
+    key = cfg.get("project", str(project_choice))
+    data.setdefault("projects", {})
+    data["projects"][key] = {
+        "last_time": event["time"],
+        "last_event": event_type,
+        "last_status": status,
+        "last_file": file_name,
+        "last_detail": str(detail),
+        "repo": event["repo"],
+        "path": str(path),
+    }
+    maru_v204_save_status(data)
+    return event
+
+def maru_v204_file_name(uploaded_file):
+    return getattr(uploaded_file, "name", "") if uploaded_file else ""
+
+def maru_v204_show_status(project_choice=None):
+    data = maru_v204_load_status()
+    events = data.get("events", [])
+    if project_choice:
+        cfg = maru_v20_project_config(project_choice)
+        events = [e for e in events if e.get("project") == cfg.get("project") or e.get("project_choice") == project_choice]
+
+    if not events:
+        st.info("아직 저장/업로드/반영 기록이 없습니다.")
+        return
+
+    latest = events[0]
+    msg = f"최근 상태: {latest.get('event_type')} / {latest.get('status')} / {latest.get('file_name')}"
+    if latest.get("status") in ["성공", "완료"]:
+        st.success(msg)
+    elif latest.get("status") in ["실패", "오류", "차단", "일부실패"]:
+        st.warning(msg)
+    else:
+        st.info(msg)
+
+    rows = []
+    for e in events[:20]:
+        rows.append({
+            "시간": e.get("time", ""),
+            "앱": e.get("project_choice", ""),
+            "종류": e.get("event_type", ""),
+            "상태": e.get("status", ""),
+            "파일": e.get("file_name", ""),
+            "저장소": e.get("repo", ""),
+            "설명": e.get("detail", "")[:120],
+        })
+    maru_show_rows(rows)
+
+def maru_v204_show_all_status_center():
+    st.markdown("### 최근 업로드·허브저장·GitHub 반영 상태")
+    st.caption("파일 선택칸은 새로고침하면 비는 것이 정상입니다. 대신 아래 기록으로 마지막 저장/반영 상태를 확인합니다.")
+    maru_v204_show_status()
+# ===== /MARU V20.4 upload/status tracking helpers =====
+
+
+
+# ===== MARU V21 real test patch upgrade engine =====
+def maru_v21_project_cfg(choice):
+    if callable(globals().get("maru_v20_project_config")):
+        return maru_v20_project_config(choice)
+    return {
+        "project": "maru-ai-code-maker",
+        "owner": "skytins3-png",
+        "repo": "maru-ai-code-maker",
+        "branch": "main",
+        "app_url": "",
+    }
+
+def maru_v21_read_uploaded(uploaded_file):
+    try:
+        uploaded_file.seek(0)
+    except Exception:
+        pass
+    return uploaded_file.read()
+
+def maru_v21_prepare_source(uploaded_file, project_choice):
+    cfg = maru_v21_project_cfg(project_choice)
+    root = Path("project_vault") / cfg["project"] / "v21_upgrade_work"
+    if root.exists():
+        shutil.rmtree(root)
+    root.mkdir(parents=True, exist_ok=True)
+
+    name = getattr(uploaded_file, "name", "upload.bin")
+    raw = maru_v21_read_uploaded(uploaded_file)
+    upload_path = root / name
+    upload_path.write_bytes(raw)
+
+    src_dir = root / "src"
+    src_dir.mkdir(parents=True, exist_ok=True)
+
+    if name.lower().endswith(".zip"):
+        with zipfile.ZipFile(upload_path, "r") as z:
+            z.extractall(src_dir)
+        app_candidates = list(src_dir.rglob("app.py"))
+        if not app_candidates:
+            raise FileNotFoundError("ZIP 안에 app.py가 없습니다.")
+        app_file = app_candidates[0]
+        if app_file.parent != src_dir:
+            flat = root / "_flat"
+            if flat.exists():
+                shutil.rmtree(flat)
+            shutil.copytree(app_file.parent, flat)
+            shutil.rmtree(src_dir)
+            flat.rename(src_dir)
+    elif name.lower().endswith(".py"):
+        (src_dir / "app.py").write_bytes(raw)
+    else:
+        raise ValueError("ZIP 또는 app.py만 업그레이드할 수 있습니다.")
+
+    if not (src_dir / "requirements.txt").exists():
+        (src_dir / "requirements.txt").write_text("streamlit\npandas\nnumpy\nrequests\n", encoding="utf-8")
+    if not (src_dir / "README.md").exists():
+        (src_dir / "README.md").write_text(f"# {cfg['project']}\n", encoding="utf-8")
+    return src_dir, name
+
+def maru_v21_scan_source(src_dir):
+    app_file = Path(src_dir) / "app.py"
+    text = app_file.read_text(encoding="utf-8", errors="ignore")
+    rows = []
+
+    def add(item, ok, detail, action=""):
+        rows.append({
+            "검사항목": item,
+            "상태": "통과" if ok else "패치필요",
+            "설명": str(detail),
+            "조치": action or ("없음" if ok else "자동패치 대상"),
+        })
+
+    # Syntax
+    try:
+        ast.parse(text)
+        add("AST 문법검사", True, "파싱 성공")
+    except Exception as e:
+        add("AST 문법검사", False, str(e), "수동 확인 필요")
+
+    # Deprecated Streamlit width
+    dep_count = len(re.findall(r"use_container_width\s*=", text))
+    add("구버전 표 옵션", dep_count == 0, f"use_container_width 사용 {dep_count}개", "width='stretch/content'로 교체")
+
+    # tabs[-1]
+    minus_count = text.count("tabs[-1]")
+    add("tabs[-1] 몰림", minus_count == 0, f"tabs[-1] {minus_count}개", "명시 번호 또는 안전 메뉴로 변경")
+
+    # duplicate keys
+    keys = re.findall(r'key\s*=\s*["\']([^"\']+)["\']', text)
+    dup_keys = sorted([k for k in set(keys) if keys.count(k) > 1])
+    add("중복 Streamlit key", len(dup_keys) == 0, dup_keys[:30], "key 고유화 필요")
+
+    # tab bounds
+    labels = []
+    m = re.search(r"tabs\s*=\s*st\.tabs\(\s*\[(.*?)\]\s*\)", text, re.S)
+    if m:
+        labels = [a or b for a,b in re.findall(r'"([^"]+)"|\'([^\']+)\'', m.group(1))]
+    idxs = sorted(set(int(x) for x in re.findall(r"with\s+tabs\[(\d+)\]", text)))
+    out = [i for i in idxs if labels and i >= len(labels)]
+    add("탭 번호 범위", len(out) == 0, f"탭 {len(labels)}개 / 범위초과 {out}", "탭 번호 수정")
+
+    # essential project repos
+    for repo in ["maru-ai-code-maker", "maru-kra-final-clean", "skytoto-ai-hub"]:
+        add(f"저장소 분리값 {repo}", repo in text, repo, "repo 설정 확인")
+
+    return rows, text
+
+def maru_v21_patch_text(text):
+    patched = text
+    changes = []
+
+    # Safe replacements
+    c = len(re.findall(r"use_container_width\s*=\s*True", patched))
+    if c:
+        patched = re.sub(r"use_container_width\s*=\s*True", 'width="stretch"', patched)
+        changes.append(f"use_container_width=True {c}개 교체")
+
+    c = len(re.findall(r"use_container_width\s*=\s*False", patched))
+    if c:
+        patched = re.sub(r"use_container_width\s*=\s*False", 'width="content"', patched)
+        changes.append(f"use_container_width=False {c}개 교체")
+
+    # Make obvious UTC label Korean.
+    if "UTC+09:00" in patched or "UTC+09" in patched:
+        patched = patched.replace("UTC+09:00", "한국시간 KST (UTC+9)").replace("UTC+09", "한국시간 KST (UTC+9)")
+        changes.append("UTC+09 표시를 한국시간 KST로 교체")
+
+    # Report file upload exclusion: add if GitHub folder upload loop exists.
+    if "for p in sorted(src.rglob" in patched and "REPORT" not in patched:
+        patched = patched.replace(
+            'if not p.is_file():\n            continue',
+            'if not p.is_file():\n            continue\n        if "REPORT" in str(p) or p.name.startswith("MARU_V"):\n            continue',
+            1
+        )
+        changes.append("REPORT/MARU_V 보고서 업로드 제외 로직 추가")
+
+    # Do not blindly patch duplicate keys; report them. Blind changes can break callbacks.
+    if not changes:
+        changes.append("자동으로 바꿀 안전패치 없음. 검사 결과만 기록")
+
+    return patched, changes
+
+def maru_v21_write_upgrade(src_dir, patched_text, project_choice, original_name, scan_rows, changes):
+    cfg = maru_v21_project_cfg(project_choice)
+    out_root = Path("project_vault") / cfg["project"] / "v21_upgraded_output"
+    if out_root.exists():
+        shutil.rmtree(out_root)
+    shutil.copytree(src_dir, out_root)
+
+    (out_root / "app.py").write_text(patched_text, encoding="utf-8")
+
+    report = {
+        "version": "V21",
+        "project_choice": project_choice,
+        "repo": f"{cfg.get('owner')}/{cfg.get('repo')}",
+        "original_file": original_name,
+        "created_at": maru_now_kst_text(),
+        "changes": changes,
+        "scan_rows": scan_rows,
+        "output": str(out_root),
+    }
+    (out_root / "MARU_V21_UPGRADE_REPORT.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    (out_root / "README_V21_UPGRADE.md").write_text(
+        "# MARU V21 업그레이드 결과\n\n"
+        f"- 프로젝트: {project_choice}\n"
+        f"- 저장소: {cfg.get('owner')}/{cfg.get('repo')}\n"
+        f"- 원본: {original_name}\n"
+        f"- 생성시각: {report['created_at']}\n\n"
+        "## 자동패치 내용\n" + "\n".join(f"- {c}" for c in changes) + "\n",
+        encoding="utf-8"
+    )
+
+    # syntax recheck
+    try:
+        py_compile.compile(str(out_root / "app.py"), doraise=True)
+        syntax_ok = True
+        syntax_msg = "py_compile 통과"
+    except Exception as e:
+        syntax_ok = False
+        syntax_msg = str(e)
+
+    zip_path = out_root.parent / f"{cfg['project']}_V21_UPGRADED.zip"
+    if zip_path.exists():
+        zip_path.unlink()
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        for p in out_root.rglob("*"):
+            if p.is_file() and "__pycache__" not in str(p):
+                z.write(p, p.relative_to(out_root))
+
+    return out_root, zip_path, syntax_ok, syntax_msg, report
+
+def maru_v21_upload_upgrade_to_github(zip_src_dir, project_choice, commit_msg):
+    cfg = maru_v21_project_cfg(project_choice)
+    if callable(globals().get("maru_v19_upload_folder_to_github")):
+        return maru_v19_upload_folder_to_github(zip_src_dir, cfg, commit_msg)
+    return [{"ok": False, "file": "-", "message": "GitHub 업로드 함수 없음"}]
+
+def maru_v21_engine_ui(project_choice):
+    st.markdown("### 테스트 → 패치 → 업그레이드 파일 생성")
+    st.caption("여기서는 상태만 보는 것이 아니라, 실제 업그레이드된 ZIP을 생성합니다.")
+
+    uploaded = st.file_uploader(
+        f"{project_choice} 원본 ZIP/app.py 업로드",
+        type=["zip", "py"],
+        key=f"v21_upgrade_upload_{project_choice}"
+    )
+    do_github = st.checkbox("통과한 업그레이드 파일을 GitHub에도 반영", value=False, key=f"v21_do_github_{project_choice}")
+    commit_msg = st.text_input("커밋 메시지", value=f"MARU V21 upgraded file: {project_choice}", key=f"v21_commit_{project_choice}")
+
+    if st.button("테스트→패치→업그레이드 파일 생성", type="primary", key=f"v21_run_{project_choice}"):
+        if not uploaded:
+            st.error("원본 ZIP 또는 app.py를 먼저 올리세요.")
+            return
+        try:
+            src_dir, original_name = maru_v21_prepare_source(uploaded, project_choice)
+            scan_rows, original_text = maru_v21_scan_source(src_dir)
+            patched_text, changes = maru_v21_patch_text(original_text)
+            out_root, zip_path, syntax_ok, syntax_msg, report = maru_v21_write_upgrade(
+                src_dir, patched_text, project_choice, original_name, scan_rows, changes
+            )
+
+            st.success("업그레이드 파일 생성 완료")
+            st.write("업그레이드 ZIP:", str(zip_path))
+            st.write("업그레이드 폴더:", str(out_root))
+
+            result_rows = [
+                {"단계": "원본 준비", "상태": "완료", "설명": str(src_dir)},
+                {"단계": "검사", "상태": "완료", "설명": f"{len(scan_rows)}개 항목 검사"},
+                {"단계": "자동패치", "상태": "완료", "설명": " / ".join(changes)},
+                {"단계": "재검사", "상태": "통과" if syntax_ok else "실패", "설명": syntax_msg},
+                {"단계": "업그레이드 ZIP 생성", "상태": "완료", "설명": str(zip_path)},
+            ]
+
+            upload_rows = []
+            if do_github and syntax_ok:
+                upload_rows = maru_v21_upload_upgrade_to_github(out_root, project_choice, commit_msg)
+                ok = sum(1 for r in upload_rows if r.get("ok"))
+                fail = sum(1 for r in upload_rows if not r.get("ok"))
+                result_rows.append({"단계": "GitHub 반영", "상태": "성공" if fail == 0 else "일부실패", "설명": f"성공 {ok} / 실패 {fail}"})
+            elif do_github and not syntax_ok:
+                result_rows.append({"단계": "GitHub 반영", "상태": "중단", "설명": "재검사 실패로 반영하지 않음"})
+            else:
+                result_rows.append({"단계": "GitHub 반영", "상태": "건너뜀", "설명": "체크하지 않음"})
+
+            maru_show_rows(result_rows)
+
+            with st.expander("▶ 검사 결과 상세", expanded=False):
+                maru_show_rows(scan_rows)
+
+            with st.expander("▶ 자동패치 내용", expanded=True):
+                for c in changes:
+                    st.write("✅", c)
+
+            if upload_rows:
+                with st.expander("▶ GitHub 업로드 상세", expanded=False):
+                    maru_show_rows(upload_rows)
+
+            if callable(globals().get("maru_v204_record")):
+                maru_v204_record(project_choice, "V21 업그레이드 파일 생성", "성공" if syntax_ok else "확인필요", str(zip_path), file_name=original_name, path=str(zip_path))
+
+        except Exception as e:
+            st.error(f"V21 업그레이드 엔진 오류: {e}")
+            with st.expander("▶ 오류 원본", expanded=False):
+                st.code(traceback.format_exc())
+# ===== /MARU V21 real test patch upgrade engine =====
+
+# ===== MARU V20.3 dedicated project upload helpers =====
+def maru_v203_fixed_upload_box(project_choice, key_prefix):
+    cfg = maru_v20_project_config(project_choice)
+    st.markdown(f"### {project_choice} 전용 업로드")
+    st.caption(f"이 칸에 올리면 `{cfg['owner']}/{cfg['repo']}` 저장소로만 반영됩니다.")
+
+    with st.expander("▶ 최근 저장/반영 상태 보기", expanded=True):
+        maru_v204_show_status(project_choice)
+
+    with st.expander("▶ 대상 저장소 확인", expanded=False):
+        st.write("프로젝트:", cfg.get("project"))
+        st.write("GitHub repo:", f"{cfg.get('owner')}/{cfg.get('repo')}")
+        st.write("branch:", cfg.get("branch", "main"))
+        st.write("앱 주소:", cfg.get("app_url", ""))
+        st.info("새로고침하면 업로드 선택칸은 비지만, 이미 저장/반영한 기록은 위 상태표에 남습니다.")
+
+    code_file = st.file_uploader(
+        f"{project_choice} ZIP 또는 app.py 업로드",
+        type=["zip", "py"],
+        key=f"{key_prefix}_code_file"
+    )
+    photo_file = st.file_uploader(
+        f"{project_choice} 사진/이미지 업로드",
+        type=["png", "jpg", "jpeg", "webp"],
+        key=f"{key_prefix}_photo_file"
+    )
+
+    with st.expander("▶ 커밋 메시지", expanded=False):
+        commit_msg = st.text_input(
+            "커밋 메시지",
+            value=f"MARU dedicated upload: {project_choice}",
+            key=f"{key_prefix}_commit_msg"
+        )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button(f"{project_choice} 코드 자동반영", type="primary", key=f"{key_prefix}_code_btn"):
+            file_name = maru_v204_file_name(code_file)
+            if not code_file:
+                st.error("ZIP 또는 app.py를 먼저 선택하세요.")
+            else:
+                try:
+                    rows = []
+                    if callable(globals().get("maru_v19_extract_code_upload")):
+                        src, meta = maru_v19_extract_code_upload(code_file, project_choice)
+                        maru_v204_record(project_choice, "허브 보관소 저장", "성공", str(src), file_name=file_name, path=str(src))
+                        rows.append({"단계": "허브 보관소 저장", "상태": "성공", "설명": str(src)})
+                    else:
+                        maru_v204_record(project_choice, "허브 보관소 저장", "실패", "업로드 추출 함수 없음", file_name=file_name)
+                        rows.append({"단계": "허브 보관소 저장", "상태": "실패", "설명": "업로드 추출 함수 없음"})
+                        maru_show_rows(rows)
+                        st.stop()
+
+                    if callable(globals().get("maru_v19_repo_guard")):
+                        ok_guard, guard_msg = maru_v19_repo_guard(project_choice, src)
+                    else:
+                        ok_guard, guard_msg = True, "전용 업로드 칸 기준으로 진행"
+                    maru_v204_record(project_choice, "저장소 안전검사", "성공" if ok_guard else "차단", guard_msg, file_name=file_name, path=str(src))
+                    rows.append({"단계": "저장소 안전검사", "상태": "성공" if ok_guard else "차단", "설명": guard_msg})
+                    if not ok_guard:
+                        st.error("저장소 안전검사에서 차단되었습니다.")
+                        with st.expander("▶ 상세 결과", expanded=True):
+                            maru_show_rows(rows)
+                        st.stop()
+
+                    if callable(globals().get("maru_v19_compile_check")):
+                        ok_compile, compile_msg = maru_v19_compile_check(src)
+                    else:
+                        ok_compile, compile_msg = True, "문법검사 건너뜀"
+                    maru_v204_record(project_choice, "문법검사", "성공" if ok_compile else "실패", compile_msg, file_name=file_name, path=str(src))
+                    rows.append({"단계": "문법검사", "상태": "성공" if ok_compile else "실패", "설명": compile_msg})
+                    if not ok_compile:
+                        st.error("문법검사 실패라 GitHub 반영을 중단했습니다.")
+                        with st.expander("▶ 상세 결과", expanded=True):
+                            maru_show_rows(rows)
+                        st.stop()
+
+                    if callable(globals().get("maru_v19_upload_folder_to_github")):
+                        upload_rows = maru_v19_upload_folder_to_github(src, cfg, commit_msg)
+                    else:
+                        upload_rows = [{"ok": False, "file": "-", "message": "GitHub 업로드 함수 없음"}]
+                    success = sum(1 for r in upload_rows if r.get("ok"))
+                    fail = sum(1 for r in upload_rows if not r.get("ok"))
+                    final_status = "성공" if fail == 0 else "일부실패"
+                    detail = f"성공 {success} / 실패 {fail}"
+                    maru_v204_record(project_choice, "GitHub 자동반영", final_status, detail, file_name=file_name, repo=f"{cfg.get('owner')}/{cfg.get('repo')}", path=str(src))
+                    rows.append({"단계": "GitHub 자동반영", "상태": final_status, "설명": detail})
+
+                    if fail == 0:
+                        st.success(f"{project_choice} 코드 자동반영 완료")
+                    else:
+                        st.warning("일부 파일 업로드 실패")
+
+                    with st.expander("▶ 단계별 결과", expanded=True):
+                        maru_show_rows(rows)
+                    with st.expander("▶ 파일별 결과", expanded=False):
+                        maru_show_rows(upload_rows)
+                    with st.expander("▶ 새로고침 후에도 남는 상태 기록", expanded=True):
+                        maru_v204_show_status(project_choice)
+
+                except Exception as e:
+                    maru_v204_record(project_choice, "코드 자동반영", "오류", str(e), file_name=file_name)
+                    st.error(f"{project_choice} 코드 자동반영 오류: {e}")
+                    with st.expander("▶ 오류 원본", expanded=False):
+                        st.code(traceback.format_exc())
+
+    with col2:
+        if st.button(f"{project_choice} 사진 자동반영", key=f"{key_prefix}_photo_btn"):
+            file_name = maru_v204_file_name(photo_file)
+            if not photo_file:
+                st.error("사진 파일을 먼저 선택하세요.")
+            else:
+                try:
+                    if callable(globals().get("maru_v19_save_photo_upload")):
+                        target, res = maru_v19_save_photo_upload(photo_file, project_choice)
+                        status = "성공" if res.get("ok") else "일부실패"
+                        maru_v204_record(project_choice, "사진 허브저장/GitHub 반영", status, res.get("message", ""), file_name=file_name, path=str(target))
+                        st.success(f"사진 보관소 저장 완료: {target}")
+                        if res.get("ok"):
+                            st.success("사진 GitHub 자동반영 성공")
+                        else:
+                            st.warning(res.get("message", "사진 GitHub 자동반영 실패/대기"))
+                        with st.expander("▶ 사진 업로드 상세", expanded=False):
+                            st.json(res)
+                        with st.expander("▶ 새로고침 후에도 남는 상태 기록", expanded=True):
+                            maru_v204_show_status(project_choice)
+                    else:
+                        maru_v204_record(project_choice, "사진 자동반영", "실패", "사진 업로드 함수 없음", file_name=file_name)
+                        st.error("사진 업로드 함수가 없습니다.")
+                except Exception as e:
+                    maru_v204_record(project_choice, "사진 자동반영", "오류", str(e), file_name=file_name)
+                    st.error(f"{project_choice} 사진 자동반영 오류: {e}")
+
+
+def maru_v203_dedicated_upload_center():
+    st.info("프로젝트 선택 드롭다운을 쓰지 않고, 앱별 전용 업로드 칸으로 분리했습니다.")
+    with st.expander("▶ AI 코드 생성기 전용 업로드", expanded=False):
+        maru_v203_fixed_upload_box("AI 코드 생성기", "v203_ai")
+    with st.expander("▶ 경마앱 전용 업로드", expanded=False):
+        maru_v203_fixed_upload_box("경마앱", "v203_kra")
+    with st.expander("▶ 토토앱 전용 업로드", expanded=False):
+        maru_v203_fixed_upload_box("토토앱", "v203_toto")
+# ===== /MARU V20.3 dedicated project upload helpers =====
+
 # ===== MARU V20.2 tabs-only UI =====
-st.set_page_config(page_title="MARU V20.2 메뉴만 보이기 AI", layout="wide")
-st.markdown("### MARU V20.2 메뉴만 보이기 AI")
+st.set_page_config(page_title="MARU V21 테스트패치완성 AI", layout="wide")
+st.markdown("### MARU V21 테스트패치완성 AI")
 st.caption("기본 화면에는 20개 메뉴만 보이고, 큰 기능은 해당 메뉴 안의 화살표로 숨겼습니다.")
 
 tab_labels = [
@@ -2476,12 +2992,12 @@ with tabs[9]:
 
 with tabs[10]:
     st.subheader("📦 버전")
-    st.success("현재 버전: MARU V20.2 메뉴만 보이기 AI")
+    st.success("현재 버전: MARU V21 테스트패치완성 AI")
     st.write("한국시간:", maru_now_kst_text())
 
 with tabs[11]:
     st.subheader("🚀 GitHub 자동반영")
-    maru_v20_basic_repo_test_ui()
+    maru_v203_dedicated_upload_center()
 
 with tabs[12]:
     st.subheader("☁️ 구글시트")
@@ -2489,11 +3005,13 @@ with tabs[12]:
 
 with tabs[13]:
     st.subheader("📚 기록")
-    st.info("자동반영/명령처리 기록은 보관소와 GitHub maru_commands에 저장됩니다.")
+    maru_v204_show_all_status_center()
 
 with tabs[14]:
     st.subheader("📝 개선승인")
     maru_v20_command_ui()
+    with st.expander("▶ 최근 패치·개선·업로드 상태", expanded=False):
+        maru_v204_show_status()
 
 with tabs[15]:
     st.subheader("♻️ 무승인패치루프")
