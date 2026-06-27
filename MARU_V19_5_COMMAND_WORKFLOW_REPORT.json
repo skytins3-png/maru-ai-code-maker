@@ -1,0 +1,16 @@
+{
+  "syntax_py_compile": true,
+  "syntax_ast_parse": true,
+  "command_workflow_present": true,
+  "command_save_present": true,
+  "command_github_record_present": true,
+  "fullauto_bridge_present": true,
+  "photo_upload_still_present": true,
+  "one_click_still_present": true,
+  "tab_count": 20,
+  "max_tab_index": 19,
+  "out_of_range_indices": [],
+  "duplicate_tab_labels": [],
+  "duplicate_key_strings_sample": [],
+  "no_use_container_width": true
+}
