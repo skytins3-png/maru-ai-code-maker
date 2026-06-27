@@ -1518,7 +1518,7 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V16.1 토큰진단 안정화 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V16 완성 안정화 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
 st.title("🧠 MARU V16 완성 안정화 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
@@ -2085,102 +2085,11 @@ def maru_full_auto_loop(mem_obj, label, repeat=5, do_github=True, github_token="
     return all_rows
 # ===== /MARU V15 full automation repair engine =====
 
-
-
-# ===== MARU V16.1 GitHub token diagnosis helpers =====
-def maru_secret_get_deep(*names, default=""):
-    try:
-        sec = st.secrets
-    except Exception:
-        return default
-    for name in names:
-        try:
-            val = sec.get(name, "")
-            if val:
-                return str(val).strip()
-        except Exception:
-            pass
-    for section in ["general", "github", "GITHUB", "secrets", "tokens", "api"]:
-        try:
-            obj = sec.get(section, {})
-            for name in names:
-                try:
-                    val = obj.get(name, "")
-                    if val:
-                        return str(val).strip()
-                except Exception:
-                    pass
-        except Exception:
-            pass
-    try:
-        for k in sec.keys():
-            try:
-                val = sec.get(k)
-                if isinstance(val, str) and ("github_pat_" in val or val.startswith("ghp_")):
-                    return val.strip()
-            except Exception:
-                pass
-    except Exception:
-        pass
-    return default
-
-def get_github_token_from_secret():
-    return maru_secret_get_deep(
-        "GITHUB_TOKEN", "MARU_GITHUB_TOKEN", "github_token",
-        "Github_Token", "GITHUB_PAT", "GH_TOKEN", default=""
-    )
-
-def maru_mask_token(token):
-    token = str(token or "")
-    if not token:
-        return "없음"
-    if len(token) <= 12:
-        return token[:4] + "****"
-    return token[:10] + "..." + token[-4:]
-
-def maru_token_diagnosis():
-    token = get_github_token_from_secret()
-    return {
-        "detected": bool(token),
-        "masked": maru_mask_token(token),
-        "length": len(token) if token else 0,
-        "looks_like_github_token": bool(token.startswith("github_pat_") or token.startswith("ghp_")),
-        "checked_names": "GITHUB_TOKEN, MARU_GITHUB_TOKEN, github_token, Github_Token, GITHUB_PAT, GH_TOKEN",
-        "message": "GitHub 토큰 감지됨" if token else "Streamlit Secrets에서 GitHub 토큰을 찾지 못했습니다."
-    }
-
-def maru_test_github_token_access(owner="skytins3-png", repo="maru-ai-code-maker"):
-    token = get_github_token_from_secret()
-    if not token:
-        return {"ok": False, "status": "NO_TOKEN", "message": "GITHUB_TOKEN 미감지"}
-    try:
-        import requests
-        url = f"https://api.github.com/repos/{owner}/{repo}/contents/app.py"
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        }
-        r = requests.get(url, headers=headers, timeout=15)
-        if r.status_code == 200:
-            return {"ok": True, "status": 200, "message": f"{owner}/{repo} app.py 읽기 성공"}
-        if r.status_code == 401:
-            return {"ok": False, "status": 401, "message": "토큰이 틀렸거나 만료됨"}
-        if r.status_code == 403:
-            return {"ok": False, "status": 403, "message": "권한 부족. Contents 권한 확인 필요"}
-        if r.status_code == 404:
-            return {"ok": False, "status": 404, "message": "repo 접근 권한 없음 또는 저장소/파일명 불일치"}
-        return {"ok": False, "status": r.status_code, "message": r.text[:300]}
-    except Exception as e:
-        return {"ok": False, "status": "ERROR", "message": str(e)}
-# ===== /MARU V16.1 GitHub token diagnosis helpers =====
-
 tabs = st.tabs(["📋 기능",
     "📦 보관소",
     "🔁 연속자동화", "🤖 코드생성", "📁 등록", "📡 테스트", "🧯 로그분석", "🖼️ 사진분석/명령", "✅ 패치", "🔍 검사", "📦 버전", "🚀 GitHub 자동반영", "☁️ 구글시트", "📚 기록"    "📝 개선승인",
     "♻️ 무승인패치루프",
     "🤖 풀자동화",
-    "🗝️ 토큰진단",
 ])
 
 with tabs[0]:
@@ -2832,26 +2741,3 @@ with tabs[-1]:
     st.write("- 승인 후에는 패치마다 추가 승인 없이 자동수정/재테스트")
     st.write("- 자동구매/자동결제는 계속 차단")
     st.write("- 위험한 코드 추정 수정은 무리하게 밀어붙이지 않고 멈춤")
-
-
-with tabs[-1]:
-    st.subheader("🗝️ GitHub 토큰 진단")
-    st.caption("토큰 전체값은 표시하지 않고 감지 여부와 권한만 확인합니다.")
-    diag = maru_token_diagnosis()
-    if diag.get("detected"):
-        st.success("GITHUB_TOKEN 감지됨")
-    else:
-        st.error("GITHUB_TOKEN 미감지")
-    st.json(diag)
-
-    st.markdown("### 저장소 접근 테스트")
-    test_repo = st.selectbox("테스트할 저장소", ["maru-ai-code-maker", "maru-kra-final-clean", "skytoto-ai-hub"], key="token_diag_repo")
-    if st.button("GitHub 토큰 권한 테스트", type="primary", width="stretch"):
-        res = maru_test_github_token_access("skytins3-png", test_repo)
-        if res.get("ok"):
-            st.success(res.get("message"))
-        else:
-            st.error(res.get("message"))
-        st.json(res)
-
-    st.info("정상 기준: detected=true, looks_like_github_token=true, 저장소 접근 테스트 status=200")
