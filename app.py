@@ -1518,9 +1518,9 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V20 전체검사 안정화 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V20.1 전체검사 순서수정 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU V20 전체검사 안정화 AI")
+st.title("🧠 MARU V20.1 전체검사 순서수정 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 
@@ -2844,6 +2844,91 @@ except Exception as e:
 
 
 
+
+# ===== MARU V20 total menu hard check center =====
+def maru_v20_extract_tab_labels_source():
+    try:
+        source = Path(__file__).read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        source = ""
+    m = re.search(r"tabs\s*=\s*st\.tabs\(\s*\[(.*?)\]\s*\)", source, re.S)
+    if not m:
+        return [], source
+    labels = [a or b for a,b in re.findall(r'"([^"]+)"|\'([^\']+)\'', m.group(1))]
+    return labels, source
+
+def maru_v20_total_check_rows():
+    labels, source = maru_v20_extract_tab_labels_source()
+    rows = []
+    def add(category, item, ok, detail, action=""):
+        rows.append({
+            "분류": category,
+            "항목": item,
+            "상태": "정상" if ok else "확인필요",
+            "설명": str(detail),
+            "조치": action if action else ("사용 가능" if ok else "수정 필요"),
+        })
+
+    indices = sorted(set(int(x) for x in re.findall(r"with\s+tabs\[(\d+)\]", source)))
+    duplicates = sorted([x for x in set(labels) if labels.count(x) > 1])
+    out_of_range = [i for i in indices if labels and i >= len(labels)]
+    keys = re.findall(r'key\s*=\s*["\']([^"\']+)["\']', source)
+    dup_keys = sorted([k for k in set(keys) if keys.count(k) > 1])
+
+    add("메뉴", "탭 개수", len(labels) >= 20, f"{len(labels)}개")
+    add("메뉴", "탭 범위", len(out_of_range) == 0, f"범위초과 {out_of_range}")
+    add("메뉴", "중복 탭 이름", len(duplicates) == 0, f"중복 {duplicates}")
+    add("메뉴", "기록/개선승인 분리", "📚 기록" in labels and "📝 개선승인" in labels, labels[13:20] if labels else [])
+    add("키", "중복 Streamlit key", len(dup_keys) == 0, dup_keys[:20])
+    add("UI", "접기 숨김", "st.expander" in source and "expanded=False" in source, "상세 영역 접힘 사용")
+    add("UI", "구버전 표 옵션 제거", not re.search(r"legacy_width_option\s*=", source), len(re.findall(r"legacy_width_option\s*=", source)))
+
+    required = [
+        ("원클릭 자동반영", "maru_v19_one_click_center"),
+        ("사진등록", "maru_v19_save_photo_upload"),
+        ("프로젝트 설정", "maru_v19_project_config"),
+        ("저장소 안전검사", "maru_v19_repo_guard"),
+        ("패치·개선 명령센터", "maru_v195_command_workflow_center"),
+        ("명령 저장", "maru_v195_save_command"),
+        ("명령 GitHub 기록", "maru_v195_upload_command_to_github"),
+        ("명령→풀자동화", "maru_v195_try_full_auto"),
+        ("토큰진단", "maru_token_diagnosis"),
+        ("풀자동화", "maru_full_auto_loop"),
+        ("한글 로그/점검", "maru_v18_show_korean_log_explain"),
+    ]
+    for name, fn in required:
+        add("필수함수", name, callable(globals().get(fn)) or f"def {fn}" in source, fn)
+
+    for repo in ["maru-ai-code-maker", "maru-kra-final-clean", "skytoto-ai-hub"]:
+        add("저장소", repo, repo in source, repo)
+
+    add("보고서 제외", "REPORT 업로드 제외", "REPORT" in source and "continue" in source, "REPORT/MARU_V 제외 로직")
+    add("시간표시", "한국시간 KST", "한국시간 KST" in source and "한국시간 KST (UTC+9)" not in source, "한국시간 KST (UTC+9) 제거")
+    return rows
+
+def maru_v20_show_total_check():
+    rows = maru_v20_total_check_rows()
+    bad = [r for r in rows if r.get("상태") != "정상"]
+    if bad:
+        st.warning(f"전체검사 결과: 확인필요 {len(bad)}개")
+    else:
+        st.success("전체검사 결과: 핵심 항목 정상")
+    try:
+        maru_v19_show_rows(rows) if callable(globals().get("maru_v19_show_rows")) else maru_show_rows(rows)
+    except Exception:
+        st.write(rows)
+
+    with st.expander("▶ 확인필요만 보기", expanded=False):
+        if bad:
+            try:
+                maru_v19_show_rows(bad) if callable(globals().get("maru_v19_show_rows")) else maru_show_rows(bad)
+            except Exception:
+                st.write(bad)
+        else:
+            st.success("확인필요 항목이 없습니다.")
+
+# ===== /MARU V20 total menu hard check center =====
+
 # ===== MARU V19.5 command / patch / improvement workflow =====
 def maru_v195_slug(text):
     text = str(text or "").strip()
@@ -3470,7 +3555,7 @@ except Exception:
 
 # ===== MARU V19.2 clean top banner =====
 try:
-    st.success("MARU V20 전체검사 안정화 AI 적용됨")
+    st.success("MARU V20.1 전체검사 순서수정 AI 적용됨")
     st.info("맨 위 원클릭 자동반영 센터에서 프로젝트 선택 → ZIP/app.py 또는 사진 업로드 → GitHub 자동반영 순서로 사용하세요.")
 except Exception:
     pass
@@ -3512,10 +3597,13 @@ except Exception as e:
 # ===== /MARU V19.6 hidden guarded command workflow panel =====
 
 
-# ===== MARU V20 hidden total check panel =====
+# ===== MARU V20.1 guarded hidden total check panel =====
 try:
     with st.expander("▶ 🧭 전체 메뉴·기능 검사", expanded=False):
-        maru_v20_show_total_check()
+        if callable(globals().get("maru_v20_show_total_check")):
+            maru_v20_show_total_check()
+        else:
+            st.error("전체검사 함수가 아직 준비되지 않았습니다.")
 except Exception as e:
     st.error(f"전체 메뉴·기능 검사 오류: {e}")
     with st.expander("▶ 오류 원본 보기", expanded=False):
@@ -3523,7 +3611,11 @@ except Exception as e:
             st.code(traceback.format_exc())
         except Exception:
             st.write(str(e))
-# ===== /MARU V20 hidden total check panel =====
+# ===== /MARU V20.1 guarded hidden total check panel =====
+
+
+
+# MARU V20.1: old total check panel removed and replaced with guarded hidden panel.
 
 
 
@@ -3537,89 +3629,7 @@ except Exception as e:
 
 
 
-# ===== MARU V20 total menu hard check center =====
-def maru_v20_extract_tab_labels_source():
-    try:
-        source = Path(__file__).read_text(encoding="utf-8", errors="ignore")
-    except Exception:
-        source = ""
-    m = re.search(r"tabs\s*=\s*st\.tabs\(\s*\[(.*?)\]\s*\)", source, re.S)
-    if not m:
-        return [], source
-    labels = [a or b for a,b in re.findall(r'"([^"]+)"|\'([^\']+)\'', m.group(1))]
-    return labels, source
-
-def maru_v20_total_check_rows():
-    labels, source = maru_v20_extract_tab_labels_source()
-    rows = []
-    def add(category, item, ok, detail, action=""):
-        rows.append({
-            "분류": category,
-            "항목": item,
-            "상태": "정상" if ok else "확인필요",
-            "설명": str(detail),
-            "조치": action if action else ("사용 가능" if ok else "수정 필요"),
-        })
-
-    indices = sorted(set(int(x) for x in re.findall(r"with\s+tabs\[(\d+)\]", source)))
-    duplicates = sorted([x for x in set(labels) if labels.count(x) > 1])
-    out_of_range = [i for i in indices if labels and i >= len(labels)]
-    keys = re.findall(r'key\s*=\s*["\']([^"\']+)["\']', source)
-    dup_keys = sorted([k for k in set(keys) if keys.count(k) > 1])
-
-    add("메뉴", "탭 개수", len(labels) >= 20, f"{len(labels)}개")
-    add("메뉴", "탭 범위", len(out_of_range) == 0, f"범위초과 {out_of_range}")
-    add("메뉴", "중복 탭 이름", len(duplicates) == 0, f"중복 {duplicates}")
-    add("메뉴", "기록/개선승인 분리", "📚 기록" in labels and "📝 개선승인" in labels, labels[13:20] if labels else [])
-    add("키", "중복 Streamlit key", len(dup_keys) == 0, dup_keys[:20])
-    add("UI", "접기 숨김", "st.expander" in source and "expanded=False" in source, "상세 영역 접힘 사용")
-    add("UI", "구버전 표 옵션 제거", not re.search(r"legacy_width_option\s*=", source), len(re.findall(r"legacy_width_option\s*=", source)))
-
-    required = [
-        ("원클릭 자동반영", "maru_v19_one_click_center"),
-        ("사진등록", "maru_v19_save_photo_upload"),
-        ("프로젝트 설정", "maru_v19_project_config"),
-        ("저장소 안전검사", "maru_v19_repo_guard"),
-        ("패치·개선 명령센터", "maru_v195_command_workflow_center"),
-        ("명령 저장", "maru_v195_save_command"),
-        ("명령 GitHub 기록", "maru_v195_upload_command_to_github"),
-        ("명령→풀자동화", "maru_v195_try_full_auto"),
-        ("토큰진단", "maru_token_diagnosis"),
-        ("풀자동화", "maru_full_auto_loop"),
-        ("한글 로그/점검", "maru_v18_show_korean_log_explain"),
-    ]
-    for name, fn in required:
-        add("필수함수", name, callable(globals().get(fn)) or f"def {fn}" in source, fn)
-
-    for repo in ["maru-ai-code-maker", "maru-kra-final-clean", "skytoto-ai-hub"]:
-        add("저장소", repo, repo in source, repo)
-
-    add("보고서 제외", "REPORT 업로드 제외", "REPORT" in source and "continue" in source, "REPORT/MARU_V 제외 로직")
-    add("시간표시", "한국시간 KST", "한국시간 KST" in source and "한국시간 KST (UTC+9)" not in source, "한국시간 KST (UTC+9) 제거")
-    return rows
-
-def maru_v20_show_total_check():
-    rows = maru_v20_total_check_rows()
-    bad = [r for r in rows if r.get("상태") != "정상"]
-    if bad:
-        st.warning(f"전체검사 결과: 확인필요 {len(bad)}개")
-    else:
-        st.success("전체검사 결과: 핵심 항목 정상")
-    try:
-        maru_v19_show_rows(rows) if callable(globals().get("maru_v19_show_rows")) else maru_show_rows(rows)
-    except Exception:
-        st.write(rows)
-
-    with st.expander("▶ 확인필요만 보기", expanded=False):
-        if bad:
-            try:
-                maru_v19_show_rows(bad) if callable(globals().get("maru_v19_show_rows")) else maru_show_rows(bad)
-            except Exception:
-                st.write(bad)
-        else:
-            st.success("확인필요 항목이 없습니다.")
-
-# ===== /MARU V20 total menu hard check center =====
+# MARU V20.1: total check helper moved above all calls.
 
 tabs = st.tabs(["📋 기능",
     "📦 보관소",

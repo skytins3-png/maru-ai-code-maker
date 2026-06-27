@@ -504,3 +504,11 @@ TOTO_API_KEY = "토토_API_KEY"
 - 한국시간 표시
 - py_compile 문법검사
 - AST 파싱검사
+
+## V20.1 전체검사 순서수정판
+
+수정:
+- `name 'maru_v20_show_total_check' is not defined` 오류 수정
+- 전체검사 함수 정의를 호출보다 위로 이동
+- 전체검사 패널을 함수 존재 확인 후 실행하도록 보호
+- 기본 접힘 유지
