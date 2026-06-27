@@ -1518,9 +1518,9 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V19.1 로딩수정 원클릭 자동반영 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V19.2 원클릭 자동반영 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU V18.1 탭오류 복구 AI")
+st.title("🧠 MARU V19.2 원클릭 자동반영 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 
@@ -3103,6 +3103,7 @@ def maru_v19_show_rows(rows):
 
 def maru_v19_one_click_center():
     st.markdown("## 🚀 원클릭 업로드 자동반영 센터")
+    st.success("현재 화면은 V19.2 정리판입니다. 여기서 업로드하면 보관소 저장 후 GitHub 자동반영까지 진행합니다.")
     st.caption("ZIP/app.py/사진을 올리면 보관소 저장 후 선택한 프로젝트 GitHub 저장소에 자동 반영합니다. 기존 메뉴는 그대로 유지됩니다.")
 
     project_choice = st.selectbox(
@@ -3206,6 +3207,15 @@ def maru_v19_one_click_center():
 
 
 
+
+
+# ===== MARU V19.2 clean top banner =====
+try:
+    st.success("MARU V19.2 원클릭 자동반영 AI 적용됨")
+    st.info("맨 위 원클릭 자동반영 센터에서 프로젝트 선택 → ZIP/app.py 또는 사진 업로드 → GitHub 자동반영 순서로 사용하세요.")
+except Exception:
+    pass
+# ===== /MARU V19.2 clean top banner =====
 
 # ===== MARU V19.1 loading fix notice =====
 try:
