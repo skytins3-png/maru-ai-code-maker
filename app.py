@@ -1518,9 +1518,9 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V17.1 한글로그 자가진단 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V17.2 하단안내 완성 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU V16 완성 안정화 AI")
+st.title("🧠 MARU V17.2 하단안내 완성 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 
@@ -2362,12 +2362,121 @@ except Exception as e:
     st.warning(f"전체 자가진단판 표시 오류: {e}")
 # ===== /MARU V17.1 safe Korean explanation + self diagnosis =====
 
+
+
+# ===== MARU V17.2 always-visible Korean guide helpers =====
+def maru_v172_token_status_text():
+    try:
+        diag = maru_token_diagnosis()
+        if diag.get("detected"):
+            return "정상", "GITHUB_TOKEN 감지됨"
+        return "확인필요", "GITHUB_TOKEN 미감지"
+    except Exception as e:
+        return "확인필요", f"토큰진단 오류: {e}"
+
+def maru_v172_simple_next_steps():
+    return [
+        "1) 📦 보관소에서 프로젝트 최신파일 저장/불러오기",
+        "2) 🧰 전체진단에서 토큰과 필수 함수 확인",
+        "3) 🧯 로그분석에서 로그 붙여넣고 한글 설명 확인",
+        "4) 🤖 풀자동화에서 자동 테스트",
+        "5) 통과하면 GitHub 자동반영 확인",
+    ]
+
+def maru_v172_render_status_panel(location="상단"):
+    status, msg = maru_v172_token_status_text()
+    st.markdown(f"### 🧭 MARU {location} 상태 안내판")
+    c1, c2 = st.columns([1, 3])
+    with c1:
+        if status == "정상":
+            st.success(status)
+        else:
+            st.warning(status)
+    with c2:
+        st.write(msg)
+    st.info("이 안내판은 탭 안에 숨기지 않고 항상 보이도록 만든 안내입니다.")
+    st.markdown("#### 다음 순서")
+    for step in maru_v172_simple_next_steps():
+        st.write("✅", step)
+
+def maru_v172_korean_log_summary(log_text):
+    log = str(log_text or "")
+    low = log.lower()
+    rows = []
+    def add(problem, why, action, risk):
+        rows.append({"문제": problem, "원인": why, "해야 할 일": action, "위험도": risk})
+    if "uvicorn server started" in low:
+        add("앱 서버 시작 성공", "Streamlit 서버가 켜졌습니다.", "화면 기능을 확인하면 됩니다.", "정상")
+    if "traceback" in low:
+        add("파이썬 오류 발생", "Traceback이 있어 실행 중 오류가 났습니다.", "마지막 오류 줄을 기준으로 패치해야 합니다.", "높음")
+    if "nameerror" in low:
+        m = re.search(r"NameError: name '([^']+)' is not defined", log)
+        miss = m.group(1) if m else "알 수 없는 이름"
+        add("NameError", f"{miss} 이름이 정의되지 않았습니다.", f"{miss} 함수/변수/import를 추가해야 합니다.", "높음")
+    if "syntaxerror" in low or "indentationerror" in low:
+        add("문법/들여쓰기 오류", "괄호/따옴표/콜론/들여쓰기가 깨졌을 수 있습니다.", "문법검사 줄 번호 기준으로 수정해야 합니다.", "높음")
+    if "arrowinvalid" in low or "conversion failed for column" in low:
+        add("표 변환 경고", "표 안에 숫자와 글자가 섞여 표시가 흔들렸습니다.", "표시 전 문자열로 통일해야 합니다.", "중간")
+    if "github_token 없음" in log or "GITHUB_TOKEN 없음" in log or "no_token" in low:
+        add("GitHub 토큰 미감지", "Streamlit Secrets에서 토큰을 못 읽었습니다.", "Secrets 저장명과 재부팅을 확인하세요.", "중간")
+    if "app.py 읽기 성공" in log or '"status": 200' in low or "status: 200" in low:
+        add("GitHub 토큰 정상", "저장소 app.py 읽기에 성공했습니다.", "자동반영을 진행해도 됩니다.", "정상")
+    if not rows:
+        add("명확한 오류 없음", "치명적인 오류 패턴이 보이지 않습니다.", "다음 기능 테스트로 진행하세요.", "정상")
+    return rows
+
+def maru_v172_show_log_korean(rows_or_text):
+    rows = rows_or_text if isinstance(rows_or_text, list) else maru_v172_korean_log_summary(rows_or_text)
+    try:
+        high = any(str(r.get("위험도")) == "높음" for r in rows)
+        mid = any(str(r.get("위험도")) == "중간" for r in rows)
+        if high:
+            st.error("한글 로그분석: 오류가 있습니다.")
+        elif mid:
+            st.warning("한글 로그분석: 확인할 내용이 있습니다.")
+        else:
+            st.success("한글 로그분석: 치명적인 오류가 보이지 않습니다.")
+        for i, r in enumerate(rows, 1):
+            with st.container(border=True):
+                st.markdown(f"**{i}. {r.get('문제','')}**")
+                st.write("원인:", r.get("원인", ""))
+                st.write("해야 할 일:", r.get("해야 할 일", ""))
+                st.write("위험도:", r.get("위험도", ""))
+    except Exception:
+        st.write(rows)
+
+def maru_v172_selfcheck_rows():
+    rows = []
+    def add(name, ok, detail):
+        rows.append({"항목": name, "상태": "정상" if ok else "확인필요", "설명": detail})
+    g = globals()
+    for fn in ["save_memory", "maru_show_rows", "maru_token_diagnosis", "maru_test_github_token_access", "maru_repo_project_guard"]:
+        add(fn, callable(g.get(fn)), "필수 함수 존재 확인")
+    try:
+        diag = maru_token_diagnosis()
+        add("GITHUB_TOKEN", bool(diag.get("detected")), diag.get("message", ""))
+    except Exception as e:
+        add("GITHUB_TOKEN", False, str(e))
+    add("화면 하단 안내판", True, "V17.2에서 항상 표시")
+    return rows
+# ===== /MARU V17.2 always-visible Korean guide helpers =====
+
+
+
+# ===== MARU V17.2 top visible panel =====
+try:
+    maru_v172_render_status_panel("상단")
+except Exception as e:
+    st.warning(f"상단 상태 안내판 오류: {e}")
+# ===== /MARU V17.2 top visible panel =====
+
 tabs = st.tabs(["📋 기능",
     "📦 보관소",
     "🔁 연속자동화", "🤖 코드생성", "📁 등록", "📡 테스트", "🧯 로그분석", "🖼️ 사진분석/명령", "✅ 패치", "🔍 검사", "📦 버전", "🚀 GitHub 자동반영", "☁️ 구글시트", "📚 기록"    "📝 개선승인",
     "♻️ 무승인패치루프",
     "🤖 풀자동화",
     "🗝️ 토큰진단",
+    "🧰 전체진단",
 ])
 
 with tabs[0]:
@@ -3072,3 +3181,46 @@ try:
 except Exception as e:
     st.warning(f"토큰진단 탭 표시 오류: {e}")
 # ===== /MARU V16.2 guaranteed token diagnosis tab content =====
+
+
+# ===== MARU V17.2 guaranteed self diagnosis tab =====
+try:
+    with tabs[-1]:
+        st.subheader("🧰 전체진단")
+        st.caption("토큰, 필수 함수, 화면 안내, 로그 설명 기능을 한 번에 확인합니다.")
+        rows = maru_v172_selfcheck_rows()
+        try:
+            maru_show_rows(rows)
+        except Exception:
+            st.write(rows)
+
+        st.markdown("### GitHub 저장소 접근 테스트")
+        if st.button("AI 코드 생성기 저장소 접근 테스트", key="v172_repo_test_btn"):
+            res = maru_test_github_token_access("skytins3-png", "maru-ai-code-maker")
+            if res.get("ok"):
+                st.success(res.get("message"))
+            else:
+                st.error(res.get("message"))
+            st.json(res)
+
+        st.markdown("### 한글 로그 설명")
+        log_text_v172 = st.text_area("로그를 붙여넣으면 한글로 설명합니다.", height=180, key="v172_log_text")
+        if st.button("한글로 설명하기", key="v172_log_btn"):
+            maru_v172_show_log_korean(log_text_v172)
+except Exception as e:
+    st.warning(f"전체진단 탭 표시 오류: {e}")
+# ===== /MARU V17.2 guaranteed self diagnosis tab =====
+
+
+# ===== MARU V17.2 bottom always visible panel =====
+try:
+    st.divider()
+    maru_v172_render_status_panel("하단")
+    with st.expander("개발자용: 전체진단 원본 보기", expanded=False):
+        try:
+            maru_show_rows(maru_v172_selfcheck_rows())
+        except Exception:
+            st.write(maru_v172_selfcheck_rows())
+except Exception as e:
+    st.warning(f"하단 상태 안내판 오류: {e}")
+# ===== /MARU V17.2 bottom always visible panel =====
