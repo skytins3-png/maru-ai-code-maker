@@ -1518,9 +1518,9 @@ def maru_github_token():
     return ""
 
 m = load()
-st.set_page_config(page_title="MARU V19.5 명령동일순서 자동반영 AI", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="MARU V20 전체검사 안정화 AI", page_icon="🧠", layout="wide")
 st.markdown("<style>.block-container{max-width:1280px;padding-top:1rem}.stButton>button{height:3rem;font-weight:800}</style>", unsafe_allow_html=True)
-st.title("🧠 MARU V19.5 명령동일순서 자동반영 AI")
+st.title("🧠 MARU V20 전체검사 안정화 AI")
 st.caption("코드생성 + 패치 + GitHub 허브 자동 업로드 → Streamlit Cloud 자동 재배포")
 st.info("핵심: 이제 ZIP 다운로드 후 사람이 다시 올리는 단계 없이, 승인 후 대상 GitHub 저장소까지 자동 반영합니다.")
 
@@ -2843,6 +2843,252 @@ except Exception as e:
 
 
 
+
+# ===== MARU V19.5 command / patch / improvement workflow =====
+def maru_v195_slug(text):
+    text = str(text or "").strip()
+    text = re.sub(r"[^A-Za-z0-9가-힣_.-]+", "_", text)
+    return text[:60] or "command"
+
+def maru_v195_kst_stamp():
+    try:
+        return maru_now_kst_text().replace(" ", "_").replace(":", "-")
+    except Exception:
+        from datetime import datetime
+        return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+def maru_v195_save_command(project_choice, command_type, command_text, attached_files=None):
+    cfg = maru_v19_project_config(project_choice) if callable(globals().get("maru_v19_project_config")) else {
+        "project": str(project_choice),
+        "repo": str(project_choice),
+        "owner": "skytins3-png",
+        "branch": "main",
+        "kind": str(project_choice),
+    }
+    base_dir = Path("project_vault") / cfg["project"] / "commands"
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    stamp = maru_v195_kst_stamp()
+    name = f"{stamp}_{maru_v195_slug(command_type)}"
+    json_path = base_dir / f"{name}.json"
+    md_path = base_dir / f"{name}.md"
+    files_dir = base_dir / f"{name}_files"
+    files_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_files = []
+    for f in attached_files or []:
+        try:
+            safe = maru_v195_slug(getattr(f, "name", "upload.bin"))
+            target = files_dir / safe
+            try:
+                f.seek(0)
+            except Exception:
+                pass
+            target.write_bytes(f.read())
+            saved_files.append(str(target))
+        except Exception as e:
+            saved_files.append(f"첨부 저장 실패: {e}")
+
+    record = {
+        "project_choice": project_choice,
+        "project": cfg.get("project"),
+        "repo": cfg.get("repo"),
+        "command_type": command_type,
+        "command_text": command_text,
+        "attached_files": saved_files,
+        "created_at": stamp,
+        "status": "REGISTERED",
+        "workflow": [
+            "명령사항 접수",
+            "보관소 저장",
+            "검사",
+            "자동패치/풀자동화",
+            "GitHub 자동반영",
+            "Streamlit 재배포 확인",
+        ],
+    }
+    json_path.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    md = f"""# MARU 패치/개선 명령사항
+
+- 프로젝트: {project_choice}
+- 저장소: {cfg.get('owner')}/{cfg.get('repo')}
+- 종류: {command_type}
+- 등록시간: {stamp}
+
+## 명령 내용
+
+{command_text}
+
+## 첨부파일
+
+{chr(10).join('- ' + x for x in saved_files) if saved_files else '- 없음'}
+
+## 처리 순서
+
+1. 명령사항 접수
+2. 보관소 저장
+3. 검사
+4. 자동패치/풀자동화
+5. GitHub 자동반영
+6. Streamlit 재배포 확인
+"""
+    md_path.write_text(md, encoding="utf-8")
+
+    try:
+        if callable(globals().get("save_event")) and "m" in globals():
+            save_event(m, "improvement_commands", {
+                "type": "improvement_command",
+                "project": project_choice,
+                "command_type": command_type,
+                "summary": command_text[:120],
+                "data": record,
+            })
+            if callable(globals().get("save")):
+                save(m)
+    except Exception:
+        pass
+
+    return record, json_path, md_path, files_dir
+
+def maru_v195_upload_command_to_github(project_choice, md_path, json_path, files_dir, commit_msg):
+    cfg = maru_v19_project_config(project_choice)
+    token = maru_v19_github_token() if callable(globals().get("maru_v19_github_token")) else ""
+    if not token:
+        return [{"ok": False, "file": "-", "status": "NO_TOKEN", "message": "GITHUB_TOKEN 미감지"}]
+
+    rows = []
+    remote_base = "maru_commands"
+    for p in [md_path, json_path]:
+        rows.append(maru_v19_upload_file_to_github(
+            cfg["owner"], cfg["repo"], cfg["branch"], token, p,
+            f"{remote_base}/{Path(p).name}",
+            commit_msg
+        ))
+    try:
+        for f in Path(files_dir).rglob("*"):
+            if f.is_file():
+                rows.append(maru_v19_upload_file_to_github(
+                    cfg["owner"], cfg["repo"], cfg["branch"], token, f,
+                    f"{remote_base}/attachments/{f.name}",
+                    commit_msg
+                ))
+    except Exception as e:
+        rows.append({"ok": False, "file": "attachments", "status": "ERROR", "message": str(e)})
+    return rows
+
+def maru_v195_try_full_auto(project_choice, repeat, do_github, commit_msg):
+    if not callable(globals().get("maru_full_auto_loop")):
+        return [{"단계": "풀자동화", "상태": "건너뜀", "설명": "maru_full_auto_loop 함수가 없어 명령 등록까지만 완료"}]
+    try:
+        rows = maru_full_auto_loop(
+            m if "m" in globals() else {},
+            project_choice,
+            repeat=int(repeat),
+            do_github=bool(do_github),
+            github_token=maru_v19_github_token() if callable(globals().get("maru_v19_github_token")) else "",
+            commit_msg=commit_msg,
+        )
+        return rows if isinstance(rows, list) else [{"단계": "풀자동화", "상태": "완료", "설명": str(rows)}]
+    except Exception as e:
+        return [{"단계": "풀자동화", "상태": "오류", "설명": str(e)}]
+
+def maru_v195_command_workflow_center():
+    st.markdown("## 📝 패치·개선·명령사항 자동처리")
+    st.caption("ZIP 업로드와 같은 순서로 명령사항도 보관소 저장 → 검사 → 자동처리 → GitHub 반영 흐름을 탑니다.")
+
+    with st.expander("▶ 패치/개선 명령 입력", expanded=False):
+        project_choice = st.selectbox(
+            "명령을 반영할 프로젝트",
+            ["AI 코드 생성기", "경마앱", "토토앱"],
+            key="v195_command_project"
+        )
+        command_type = st.selectbox(
+            "명령 종류",
+            ["패치", "개선", "오류수정", "사진/화면분석", "기능추가", "UI정리", "기타"],
+            key="v195_command_type"
+        )
+        command_text = st.text_area(
+            "명령사항",
+            height=150,
+            placeholder="예: 경마앱 대시보드 글씨를 크게 하고, 불필요한 상세표는 접기 화살표로 숨겨줘.",
+            key="v195_command_text"
+        )
+        attached = st.file_uploader(
+            "첨부파일/사진 등록",
+            type=["png", "jpg", "jpeg", "webp", "txt", "py", "zip", "json", "md"],
+            accept_multiple_files=True,
+            key="v195_command_files"
+        )
+
+    with st.expander("▶ 처리 방식", expanded=False):
+        upload_command = st.checkbox("명령사항을 GitHub에도 기록", value=True, key="v195_upload_command")
+        run_fullauto = st.checkbox("등록 후 풀자동화까지 실행", value=True, key="v195_run_fullauto")
+        do_github = st.checkbox("풀자동화 통과 시 GitHub 자동반영", value=True, key="v195_do_github")
+        repeat = st.number_input("풀자동화 반복 횟수", min_value=1, max_value=10, value=3, step=1, key="v195_repeat")
+        commit_msg = st.text_input("커밋 메시지", value="MARU command workflow auto update", key="v195_commit_msg")
+
+    if st.button("명령사항 등록 후 동일 순서로 자동처리", type="primary", key="v195_run_command_workflow"):
+        if not command_text.strip():
+            st.error("명령사항을 입력하세요.")
+            return
+
+        result_rows = []
+        try:
+            record, json_path, md_path, files_dir = maru_v195_save_command(project_choice, command_type, command_text, attached)
+            result_rows.append({"단계": "명령사항 접수", "상태": "성공", "설명": command_text[:80]})
+            result_rows.append({"단계": "보관소 저장", "상태": "성공", "설명": str(json_path)})
+
+            if upload_command:
+                gh_rows = maru_v195_upload_command_to_github(project_choice, md_path, json_path, files_dir, commit_msg)
+                ok = sum(1 for r in gh_rows if r.get("ok"))
+                fail = sum(1 for r in gh_rows if not r.get("ok"))
+                result_rows.append({"단계": "명령 GitHub 기록", "상태": "성공" if fail == 0 else "일부실패", "설명": f"성공 {ok} / 실패 {fail}"})
+            else:
+                gh_rows = []
+                result_rows.append({"단계": "명령 GitHub 기록", "상태": "건너뜀", "설명": "보관소에만 저장"})
+
+            if run_fullauto:
+                auto_rows = maru_v195_try_full_auto(project_choice, repeat, do_github, commit_msg)
+                error_count = sum(1 for r in auto_rows if str(r.get("상태", r.get("status", ""))) in ["오류", "실패", "error"])
+                result_rows.append({"단계": "풀자동화", "상태": "완료" if error_count == 0 else "확인필요", "설명": f"결과 {len(auto_rows)}건"})
+            else:
+                auto_rows = []
+                result_rows.append({"단계": "풀자동화", "상태": "건너뜀", "설명": "명령 등록까지만 완료"})
+
+            st.success("명령사항 자동처리 흐름이 완료되었습니다.")
+            with st.expander("▶ 단계별 결과 보기", expanded=True):
+                maru_v19_show_rows(result_rows)
+
+            with st.expander("▶ GitHub 명령 기록 상세", expanded=False):
+                if gh_rows:
+                    maru_v19_show_rows(gh_rows)
+                else:
+                    st.write("GitHub 기록 없음")
+
+            with st.expander("▶ 풀자동화 상세 결과", expanded=False):
+                if auto_rows:
+                    try:
+                        maru_v19_show_rows(auto_rows)
+                    except Exception:
+                        st.write(auto_rows)
+                else:
+                    st.write("풀자동화 실행 없음")
+
+        except Exception as e:
+            st.error(f"명령사항 자동처리 오류: {e}")
+            with st.expander("▶ 오류 원본 보기", expanded=False):
+                try:
+                    st.code(traceback.format_exc())
+                except Exception:
+                    st.write(str(e))
+
+    with st.expander("▶ 이 기능이 하는 일", expanded=False):
+        st.write("패치/개선/오류수정/사진분석 명령을 ZIP 업로드와 같은 흐름으로 처리합니다.")
+        st.write("명령사항은 프로젝트별 보관소에 저장되고, 선택 시 GitHub `maru_commands/` 폴더에도 기록됩니다.")
+        st.write("풀자동화 체크를 켜면 기존 풀자동화 루프까지 이어서 실행합니다.")
+# ===== /MARU V19.5 command / patch / improvement workflow =====
+
 # ===== MARU V19 one-click upload auto reflect center =====
 def maru_v19_project_config(choice):
     choice = str(choice or "")
@@ -3224,7 +3470,7 @@ except Exception:
 
 # ===== MARU V19.2 clean top banner =====
 try:
-    st.success("MARU V19.5 명령동일순서 자동반영 AI 적용됨")
+    st.success("MARU V20 전체검사 안정화 AI 적용됨")
     st.info("맨 위 원클릭 자동반영 센터에서 프로젝트 선택 → ZIP/app.py 또는 사진 업로드 → GitHub 자동반영 순서로 사용하세요.")
 except Exception:
     pass
@@ -3249,264 +3495,131 @@ except Exception as e:
 # ===== /MARU V19 visible one-click center panel =====
 
 
-# ===== MARU V19.5 visible command workflow panel =====
+# ===== MARU V19.6 hidden guarded command workflow panel =====
 try:
-    maru_v195_command_workflow_center()
+    with st.expander("▶ 📝 패치·개선·명령사항 자동처리", expanded=False):
+        if callable(globals().get("maru_v195_command_workflow_center")):
+            maru_v195_command_workflow_center()
+        else:
+            st.error("명령사항 자동처리 함수가 아직 준비되지 않았습니다.")
 except Exception as e:
     st.error(f"패치·개선·명령사항 자동처리 센터 오류: {e}")
-    try:
-        st.code(traceback.format_exc())
-    except Exception:
-        pass
-# ===== /MARU V19.5 visible command workflow panel =====
-
-
-
-
-# ===== MARU V19.5 command / patch / improvement workflow =====
-def maru_v195_slug(text):
-    text = str(text or "").strip()
-    text = re.sub(r"[^A-Za-z0-9가-힣_.-]+", "_", text)
-    return text[:60] or "command"
-
-def maru_v195_kst_stamp():
-    try:
-        return maru_now_kst_text().replace(" ", "_").replace(":", "-")
-    except Exception:
-        from datetime import datetime
-        return datetime.now().strftime("%Y%m%d_%H%M%S")
-
-def maru_v195_save_command(project_choice, command_type, command_text, attached_files=None):
-    cfg = maru_v19_project_config(project_choice) if callable(globals().get("maru_v19_project_config")) else {
-        "project": str(project_choice),
-        "repo": str(project_choice),
-        "owner": "skytins3-png",
-        "branch": "main",
-        "kind": str(project_choice),
-    }
-    base_dir = Path("project_vault") / cfg["project"] / "commands"
-    base_dir.mkdir(parents=True, exist_ok=True)
-
-    stamp = maru_v195_kst_stamp()
-    name = f"{stamp}_{maru_v195_slug(command_type)}"
-    json_path = base_dir / f"{name}.json"
-    md_path = base_dir / f"{name}.md"
-    files_dir = base_dir / f"{name}_files"
-    files_dir.mkdir(parents=True, exist_ok=True)
-
-    saved_files = []
-    for f in attached_files or []:
+    with st.expander("▶ 오류 원본 보기", expanded=False):
         try:
-            safe = maru_v195_slug(getattr(f, "name", "upload.bin"))
-            target = files_dir / safe
-            try:
-                f.seek(0)
-            except Exception:
-                pass
-            target.write_bytes(f.read())
-            saved_files.append(str(target))
-        except Exception as e:
-            saved_files.append(f"첨부 저장 실패: {e}")
+            st.code(traceback.format_exc())
+        except Exception:
+            st.write(str(e))
+# ===== /MARU V19.6 hidden guarded command workflow panel =====
 
-    record = {
-        "project_choice": project_choice,
-        "project": cfg.get("project"),
-        "repo": cfg.get("repo"),
-        "command_type": command_type,
-        "command_text": command_text,
-        "attached_files": saved_files,
-        "created_at": stamp,
-        "status": "REGISTERED",
-        "workflow": [
-            "명령사항 접수",
-            "보관소 저장",
-            "검사",
-            "자동패치/풀자동화",
-            "GitHub 자동반영",
-            "Streamlit 재배포 확인",
-        ],
-    }
-    json_path.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    md = f"""# MARU 패치/개선 명령사항
+# ===== MARU V20 hidden total check panel =====
+try:
+    with st.expander("▶ 🧭 전체 메뉴·기능 검사", expanded=False):
+        maru_v20_show_total_check()
+except Exception as e:
+    st.error(f"전체 메뉴·기능 검사 오류: {e}")
+    with st.expander("▶ 오류 원본 보기", expanded=False):
+        try:
+            st.code(traceback.format_exc())
+        except Exception:
+            st.write(str(e))
+# ===== /MARU V20 hidden total check panel =====
 
-- 프로젝트: {project_choice}
-- 저장소: {cfg.get('owner')}/{cfg.get('repo')}
-- 종류: {command_type}
-- 등록시간: {stamp}
 
-## 명령 내용
 
-{command_text}
 
-## 첨부파일
+# MARU V19.6: old V19.5 visible command panel removed; replaced by hidden guarded panel.
 
-{chr(10).join('- ' + x for x in saved_files) if saved_files else '- 없음'}
 
-## 처리 순서
 
-1. 명령사항 접수
-2. 보관소 저장
-3. 검사
-4. 자동패치/풀자동화
-5. GitHub 자동반영
-6. Streamlit 재배포 확인
-"""
-    md_path.write_text(md, encoding="utf-8")
 
+# MARU V19.6: V19.5 helper block moved above all calls.
+
+
+
+# ===== MARU V20 total menu hard check center =====
+def maru_v20_extract_tab_labels_source():
     try:
-        if callable(globals().get("save_event")) and "m" in globals():
-            save_event(m, "improvement_commands", {
-                "type": "improvement_command",
-                "project": project_choice,
-                "command_type": command_type,
-                "summary": command_text[:120],
-                "data": record,
-            })
-            if callable(globals().get("save")):
-                save(m)
+        source = Path(__file__).read_text(encoding="utf-8", errors="ignore")
     except Exception:
-        pass
+        source = ""
+    m = re.search(r"tabs\s*=\s*st\.tabs\(\s*\[(.*?)\]\s*\)", source, re.S)
+    if not m:
+        return [], source
+    labels = [a or b for a,b in re.findall(r'"([^"]+)"|\'([^\']+)\'', m.group(1))]
+    return labels, source
 
-    return record, json_path, md_path, files_dir
-
-def maru_v195_upload_command_to_github(project_choice, md_path, json_path, files_dir, commit_msg):
-    cfg = maru_v19_project_config(project_choice)
-    token = maru_v19_github_token() if callable(globals().get("maru_v19_github_token")) else ""
-    if not token:
-        return [{"ok": False, "file": "-", "status": "NO_TOKEN", "message": "GITHUB_TOKEN 미감지"}]
-
+def maru_v20_total_check_rows():
+    labels, source = maru_v20_extract_tab_labels_source()
     rows = []
-    remote_base = "maru_commands"
-    for p in [md_path, json_path]:
-        rows.append(maru_v19_upload_file_to_github(
-            cfg["owner"], cfg["repo"], cfg["branch"], token, p,
-            f"{remote_base}/{Path(p).name}",
-            commit_msg
-        ))
-    try:
-        for f in Path(files_dir).rglob("*"):
-            if f.is_file():
-                rows.append(maru_v19_upload_file_to_github(
-                    cfg["owner"], cfg["repo"], cfg["branch"], token, f,
-                    f"{remote_base}/attachments/{f.name}",
-                    commit_msg
-                ))
-    except Exception as e:
-        rows.append({"ok": False, "file": "attachments", "status": "ERROR", "message": str(e)})
+    def add(category, item, ok, detail, action=""):
+        rows.append({
+            "분류": category,
+            "항목": item,
+            "상태": "정상" if ok else "확인필요",
+            "설명": str(detail),
+            "조치": action if action else ("사용 가능" if ok else "수정 필요"),
+        })
+
+    indices = sorted(set(int(x) for x in re.findall(r"with\s+tabs\[(\d+)\]", source)))
+    duplicates = sorted([x for x in set(labels) if labels.count(x) > 1])
+    out_of_range = [i for i in indices if labels and i >= len(labels)]
+    keys = re.findall(r'key\s*=\s*["\']([^"\']+)["\']', source)
+    dup_keys = sorted([k for k in set(keys) if keys.count(k) > 1])
+
+    add("메뉴", "탭 개수", len(labels) >= 20, f"{len(labels)}개")
+    add("메뉴", "탭 범위", len(out_of_range) == 0, f"범위초과 {out_of_range}")
+    add("메뉴", "중복 탭 이름", len(duplicates) == 0, f"중복 {duplicates}")
+    add("메뉴", "기록/개선승인 분리", "📚 기록" in labels and "📝 개선승인" in labels, labels[13:20] if labels else [])
+    add("키", "중복 Streamlit key", len(dup_keys) == 0, dup_keys[:20])
+    add("UI", "접기 숨김", "st.expander" in source and "expanded=False" in source, "상세 영역 접힘 사용")
+    add("UI", "구버전 표 옵션 제거", not re.search(r"legacy_width_option\s*=", source), len(re.findall(r"legacy_width_option\s*=", source)))
+
+    required = [
+        ("원클릭 자동반영", "maru_v19_one_click_center"),
+        ("사진등록", "maru_v19_save_photo_upload"),
+        ("프로젝트 설정", "maru_v19_project_config"),
+        ("저장소 안전검사", "maru_v19_repo_guard"),
+        ("패치·개선 명령센터", "maru_v195_command_workflow_center"),
+        ("명령 저장", "maru_v195_save_command"),
+        ("명령 GitHub 기록", "maru_v195_upload_command_to_github"),
+        ("명령→풀자동화", "maru_v195_try_full_auto"),
+        ("토큰진단", "maru_token_diagnosis"),
+        ("풀자동화", "maru_full_auto_loop"),
+        ("한글 로그/점검", "maru_v18_show_korean_log_explain"),
+    ]
+    for name, fn in required:
+        add("필수함수", name, callable(globals().get(fn)) or f"def {fn}" in source, fn)
+
+    for repo in ["maru-ai-code-maker", "maru-kra-final-clean", "skytoto-ai-hub"]:
+        add("저장소", repo, repo in source, repo)
+
+    add("보고서 제외", "REPORT 업로드 제외", "REPORT" in source and "continue" in source, "REPORT/MARU_V 제외 로직")
+    add("시간표시", "한국시간 KST", "한국시간 KST" in source and "한국시간 KST (UTC+9)" not in source, "한국시간 KST (UTC+9) 제거")
     return rows
 
-def maru_v195_try_full_auto(project_choice, repeat, do_github, commit_msg):
-    if not callable(globals().get("maru_full_auto_loop")):
-        return [{"단계": "풀자동화", "상태": "건너뜀", "설명": "maru_full_auto_loop 함수가 없어 명령 등록까지만 완료"}]
+def maru_v20_show_total_check():
+    rows = maru_v20_total_check_rows()
+    bad = [r for r in rows if r.get("상태") != "정상"]
+    if bad:
+        st.warning(f"전체검사 결과: 확인필요 {len(bad)}개")
+    else:
+        st.success("전체검사 결과: 핵심 항목 정상")
     try:
-        rows = maru_full_auto_loop(
-            m if "m" in globals() else {},
-            project_choice,
-            repeat=int(repeat),
-            do_github=bool(do_github),
-            github_token=maru_v19_github_token() if callable(globals().get("maru_v19_github_token")) else "",
-            commit_msg=commit_msg,
-        )
-        return rows if isinstance(rows, list) else [{"단계": "풀자동화", "상태": "완료", "설명": str(rows)}]
-    except Exception as e:
-        return [{"단계": "풀자동화", "상태": "오류", "설명": str(e)}]
+        maru_v19_show_rows(rows) if callable(globals().get("maru_v19_show_rows")) else maru_show_rows(rows)
+    except Exception:
+        st.write(rows)
 
-def maru_v195_command_workflow_center():
-    st.markdown("## 📝 패치·개선·명령사항 자동처리")
-    st.caption("ZIP 업로드와 같은 순서로 명령사항도 보관소 저장 → 검사 → 자동처리 → GitHub 반영 흐름을 탑니다.")
+    with st.expander("▶ 확인필요만 보기", expanded=False):
+        if bad:
+            try:
+                maru_v19_show_rows(bad) if callable(globals().get("maru_v19_show_rows")) else maru_show_rows(bad)
+            except Exception:
+                st.write(bad)
+        else:
+            st.success("확인필요 항목이 없습니다.")
 
-    with st.expander("▶ 패치/개선 명령 입력", expanded=True):
-        project_choice = st.selectbox(
-            "명령을 반영할 프로젝트",
-            ["AI 코드 생성기", "경마앱", "토토앱"],
-            key="v195_command_project"
-        )
-        command_type = st.selectbox(
-            "명령 종류",
-            ["패치", "개선", "오류수정", "사진/화면분석", "기능추가", "UI정리", "기타"],
-            key="v195_command_type"
-        )
-        command_text = st.text_area(
-            "명령사항",
-            height=150,
-            placeholder="예: 경마앱 대시보드 글씨를 크게 하고, 불필요한 상세표는 접기 화살표로 숨겨줘.",
-            key="v195_command_text"
-        )
-        attached = st.file_uploader(
-            "첨부파일/사진 등록",
-            type=["png", "jpg", "jpeg", "webp", "txt", "py", "zip", "json", "md"],
-            accept_multiple_files=True,
-            key="v195_command_files"
-        )
-
-    with st.expander("▶ 처리 방식", expanded=False):
-        upload_command = st.checkbox("명령사항을 GitHub에도 기록", value=True, key="v195_upload_command")
-        run_fullauto = st.checkbox("등록 후 풀자동화까지 실행", value=True, key="v195_run_fullauto")
-        do_github = st.checkbox("풀자동화 통과 시 GitHub 자동반영", value=True, key="v195_do_github")
-        repeat = st.number_input("풀자동화 반복 횟수", min_value=1, max_value=10, value=3, step=1, key="v195_repeat")
-        commit_msg = st.text_input("커밋 메시지", value="MARU command workflow auto update", key="v195_commit_msg")
-
-    if st.button("명령사항 등록 후 동일 순서로 자동처리", type="primary", key="v195_run_command_workflow"):
-        if not command_text.strip():
-            st.error("명령사항을 입력하세요.")
-            return
-
-        result_rows = []
-        try:
-            record, json_path, md_path, files_dir = maru_v195_save_command(project_choice, command_type, command_text, attached)
-            result_rows.append({"단계": "명령사항 접수", "상태": "성공", "설명": command_text[:80]})
-            result_rows.append({"단계": "보관소 저장", "상태": "성공", "설명": str(json_path)})
-
-            if upload_command:
-                gh_rows = maru_v195_upload_command_to_github(project_choice, md_path, json_path, files_dir, commit_msg)
-                ok = sum(1 for r in gh_rows if r.get("ok"))
-                fail = sum(1 for r in gh_rows if not r.get("ok"))
-                result_rows.append({"단계": "명령 GitHub 기록", "상태": "성공" if fail == 0 else "일부실패", "설명": f"성공 {ok} / 실패 {fail}"})
-            else:
-                gh_rows = []
-                result_rows.append({"단계": "명령 GitHub 기록", "상태": "건너뜀", "설명": "보관소에만 저장"})
-
-            if run_fullauto:
-                auto_rows = maru_v195_try_full_auto(project_choice, repeat, do_github, commit_msg)
-                error_count = sum(1 for r in auto_rows if str(r.get("상태", r.get("status", ""))) in ["오류", "실패", "error"])
-                result_rows.append({"단계": "풀자동화", "상태": "완료" if error_count == 0 else "확인필요", "설명": f"결과 {len(auto_rows)}건"})
-            else:
-                auto_rows = []
-                result_rows.append({"단계": "풀자동화", "상태": "건너뜀", "설명": "명령 등록까지만 완료"})
-
-            st.success("명령사항 자동처리 흐름이 완료되었습니다.")
-            with st.expander("▶ 단계별 결과 보기", expanded=True):
-                maru_v19_show_rows(result_rows)
-
-            with st.expander("▶ GitHub 명령 기록 상세", expanded=False):
-                if gh_rows:
-                    maru_v19_show_rows(gh_rows)
-                else:
-                    st.write("GitHub 기록 없음")
-
-            with st.expander("▶ 풀자동화 상세 결과", expanded=False):
-                if auto_rows:
-                    try:
-                        maru_v19_show_rows(auto_rows)
-                    except Exception:
-                        st.write(auto_rows)
-                else:
-                    st.write("풀자동화 실행 없음")
-
-        except Exception as e:
-            st.error(f"명령사항 자동처리 오류: {e}")
-            with st.expander("▶ 오류 원본 보기", expanded=False):
-                try:
-                    st.code(traceback.format_exc())
-                except Exception:
-                    st.write(str(e))
-
-    with st.expander("▶ 이 기능이 하는 일", expanded=False):
-        st.write("패치/개선/오류수정/사진분석 명령을 ZIP 업로드와 같은 흐름으로 처리합니다.")
-        st.write("명령사항은 프로젝트별 보관소에 저장되고, 선택 시 GitHub `maru_commands/` 폴더에도 기록됩니다.")
-        st.write("풀자동화 체크를 켜면 기존 풀자동화 루프까지 이어서 실행합니다.")
-# ===== /MARU V19.5 command / patch / improvement workflow =====
+# ===== /MARU V20 total menu hard check center =====
 
 tabs = st.tabs(["📋 기능",
     "📦 보관소",
