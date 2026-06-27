@@ -1,33 +1,3 @@
 {
-  "version": "20.1-total-check-order-fix",
-  "projects": {},
-  "patch_records": [],
-  "github_deploys": [],
-  "test_records": [],
-  "file_checks": [],
-  "generated_projects": [],
-  "hub_uploads": [],
-  "log_analyses": [],
-  "image_analyses": [],
-  "command_records": [],
-  "google_sheets": {
-    "enabled": false,
-    "sheet_id": "",
-    "service_account_json": ""
-  },
-  "lessons": [],
-  "default_profile": {
-    "project_name": "maru-kra-final-clean",
-    "app_url": "https://maru-kra-final-clean.streamlit.app",
-    "api_key": "",
-    "api_urls": "",
-    "github_owner": "skytins3-png",
-    "github_repo": "maru-kra-final-clean",
-    "github_branch": "main"
-  },
-  "saved_profiles": {},
-  "project_vault": {},
-  "continuous_loop_history": [],
-  "improvement_requests": [],
-  "approved_patch_queue": []
+  "version": "20.2-tabs-only-clean"
 }
