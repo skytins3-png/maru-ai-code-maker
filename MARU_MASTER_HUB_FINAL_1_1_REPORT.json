@@ -1,0 +1,12 @@
+{
+  "syntax_py_compile": true,
+  "syntax_ast_parse": true,
+  "duplicate_key_strings": [],
+  "log_analysis_window": true,
+  "command_instruction_window": true,
+  "code_result_window": true,
+  "completed_file_download": true,
+  "approval_download_visible": true,
+  "bad_items": [],
+  "bad_items_count": 0
+}

@@ -1,0 +1,12 @@
+{
+  "syntax_py_compile": true,
+  "syntax_ast_parse": true,
+  "duplicate_key_strings": [],
+  "custom_project_file": true,
+  "dynamic_project_registry": true,
+  "add_custom_project": true,
+  "custom_project_ui": true,
+  "dynamic_selectboxes": true,
+  "bad_items": [],
+  "bad_items_count": 0
+}

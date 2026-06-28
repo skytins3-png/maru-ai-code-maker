@@ -1,0 +1,13 @@
+{
+  "syntax_py_compile": true,
+  "syntax_ast_parse": true,
+  "duplicate_key_strings": [],
+  "final_ready_check": true,
+  "final_file_board": true,
+  "deploy_safety_check": true,
+  "backup_before_deploy": true,
+  "streamlit_link_after_deploy": true,
+  "next_action_guide": true,
+  "bad_items": [],
+  "bad_items_count": 0
+}
