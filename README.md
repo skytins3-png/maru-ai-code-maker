@@ -1,14 +1,15 @@
-# MARU MASTER HUB FINAL 1.3
+# MARU MASTER HUB FINAL 1.5 HARD DUPKEY FIX
 
-추가된 핵심:
-- 새 프로젝트 직접 등록 기능
-- 기본 3개 앱 외에 사용자 정의 프로젝트 추가 가능
-- 등록된 새 프로젝트가 모든 선택칸(등록/업그레이드/승인/반영)에 자동 반영
-- 프로젝트 정보는 project_vault/_custom_projects.json에 저장
+수정:
+- StreamlitDuplicateElementKey 재발 방지
+- show_final_file_board 전체 교체
+- final_board_zip_ / final_board_report_ 예전 key 패턴 완전 제거
+- 미리보기/기록/완성파일 다운로드 버튼 key를 화면위치+순번+파일경로 기반으로 생성
 
-등록 방법:
-1. 프로젝트 선택 탭
-2. 새 프로젝트 추가 등록
-3. 표시이름 / project slug / owner / repo / branch / 앱주소 입력
-4. 등록 버튼
-5. 이후 모든 메뉴에서 새 프로젝트 선택 가능
+업로드:
+- app.py
+- requirements.txt
+- README.md
+- ai_memory.json
+
+보고서 JSON은 올리지 않아도 됩니다.
