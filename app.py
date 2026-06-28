@@ -14,7 +14,7 @@ import ast
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
-APP_VERSION = "MARU_MASTER_HUB_FINAL_1.3_CUSTOM_PROJECTS"
+APP_VERSION = "MARU_MASTER_HUB_FINAL_1.5_HARD_DUPKEY_FIX"
 KST = timezone(timedelta(hours=9))
 
 PROJECTS = {
@@ -467,6 +467,12 @@ def make_code_preview(patched_text, max_chars=12000):
         return text
     return text[:max_chars] + "\n\n# ... 이하 생략됨. 완성 파일에는 전체 코드가 들어 있습니다."
 
+
+def widget_key(*parts):
+    raw = "_".join(str(p) for p in parts if p is not None)
+    raw = re.sub(r"[^A-Za-z0-9가-힣_.-]+", "_", raw)
+    return raw[:180]
+
 def download_file_button(path, label, key):
     p = Path(path)
     if p.exists() and p.is_file():
@@ -513,7 +519,7 @@ def final_ready_check():
     })
     return rows
 
-def show_final_file_board(project_choice=None):
+def show_final_file_board(project_choice=None, key_prefix="final_board"):
     data = load_status()
     items = data.get("pending", [])
     if project_choice:
@@ -522,7 +528,8 @@ def show_final_file_board(project_choice=None):
         st.info("아직 생성된 완성 파일이 없습니다.")
         return
 
-    for item in items[:20]:
+    for idx, item in enumerate(items[:20]):
+        item_id = item.get("id") or f"{item.get('project','item')}_{idx}_{item.get('created_at','time')}"
         title = f"{item.get('project')} / {item.get('created_at')} / 승인:{item.get('approved')} / 반영:{item.get('deployed')}"
         with st.expander("▶ 완성 파일: " + title, expanded=False):
             st.write("저장소:", item.get("repo"))
@@ -530,8 +537,13 @@ def show_final_file_board(project_choice=None):
             st.write("완성 폴더:", item.get("folder_path"))
             st.write("보고서:", item.get("report_path"))
             st.write("재검사:", item.get("syntax_msg"))
-            download_file_button(item.get("zip_path", ""), "완성 ZIP 다운로드", key=f"final_board_zip_{item['id']}")
-            download_file_button(item.get("report_path", ""), "보고서 다운로드", key=f"final_board_report_{item['id']}")
+
+            zip_key = widget_key(key_prefix, "complete_zip", idx, item_id, item.get("created_at", ""), item.get("zip_path", ""))
+            report_key = widget_key(key_prefix, "complete_report", idx, item_id, item.get("created_at", ""), item.get("report_path", ""))
+
+            download_file_button(item.get("zip_path", ""), "완성 ZIP 다운로드", key=zip_key)
+            download_file_button(item.get("report_path", ""), "보고서 다운로드", key=report_key)
+
             app_url = get_all_projects().get(item.get("project"), {}).get("app_url", "")
             if app_url:
                 st.link_button("Streamlit 앱 열기", app_url)
@@ -772,7 +784,7 @@ with tabs[2]:
 with tabs[3]:
     st.subheader("👀 미리보기·승인")
     with st.expander("▶ 완성 파일 목록판", expanded=True):
-        show_final_file_board()
+        show_final_file_board(key_prefix='preview_board')
     pending = load_status().get("pending", [])
     if not pending:
         st.info("승인 대기 중인 업그레이드 결과가 없습니다.")
@@ -781,12 +793,12 @@ with tabs[3]:
             st.write("저장소:", item.get("repo"))
             st.write("업그레이드 ZIP:", item.get("zip_path"))
             st.write("보고서:", item.get("report_path"))
-            download_file_button(item.get("zip_path", ""), "완성 ZIP 다운로드", key=f"preview_zip_{item['id']}")
-            download_file_button(item.get("report_path", ""), "보고서 다운로드", key=f"preview_report_{item['id']}")
+            download_file_button(item.get("zip_path", ""), "완성 ZIP 다운로드", key=widget_key("preview_zip", item.get("id",""), item.get("created_at",""), item.get("zip_path","")))
+            download_file_button(item.get("report_path", ""), "보고서 다운로드", key=widget_key("preview_report", item.get("id",""), item.get("created_at",""), item.get("report_path","")))
             st.write("재검사:", item.get("syntax_msg"))
             for c in item.get("changes", []): st.write("✅", c)
-            approve = st.checkbox("이 결과를 확인했고 GitHub 반영을 승인합니다.", key=f"approve_{item['id']}")
-            if st.button("승인 저장", key=f"approve_btn_{item['id']}"):
+            approve = st.checkbox("이 결과를 확인했고 GitHub 반영을 승인합니다.", key=widget_key("approve", item.get("id",""), item.get("created_at","")))
+            if st.button("승인 저장", key=widget_key("approve_btn", item.get("id",""), item.get("created_at",""))):
                 if not approve:
                     st.error("승인 체크가 필요합니다.")
                 else:
@@ -803,13 +815,13 @@ with tabs[4]:
         with st.expander(f"▶ 반영 대기: {item.get('project')} / {item.get('created_at')}", expanded=False):
             st.write("저장소:", item.get("repo"))
             st.write("업그레이드 폴더:", item.get("folder_path"))
-            msg = st.text_input("커밋 메시지", value=f"MARU approved upgrade: {item.get('project')}", key=f"commit_{item['id']}")
+            msg = st.text_input("커밋 메시지", value=f"MARU approved upgrade: {item.get('project')}", key=widget_key("commit", item.get("id",""), item.get("created_at","")))
             with st.expander("▶ 반영 전 최종 안전검사", expanded=True):
                 safety_rows, can_deploy = deploy_safety_check(item)
                 show_rows(safety_rows)
                 st.info(next_action_from_rows(safety_rows))
 
-            if st.button("승인된 파일 GitHub 반영", type="primary", key=f"deploy_{item['id']}"):
+            if st.button("승인된 파일 GitHub 반영", type="primary", key=widget_key("deploy", item.get("id",""), item.get("created_at",""))):
                 folder = Path(item.get("folder_path", ""))
                 safety_rows, can_deploy = deploy_safety_check(item)
                 if not can_deploy:
@@ -819,7 +831,7 @@ with tabs[4]:
                     backup_zip, backup_msg = backup_before_deploy(item)
                     st.info(f"반영 전 백업: {backup_msg}")
                     if backup_zip:
-                        download_file_button(backup_zip, "반영 전 백업 ZIP 다운로드", key=f"backup_zip_{item['id']}")
+                        download_file_button(backup_zip, "반영 전 백업 ZIP 다운로드", key=widget_key("backup_zip", item.get("id",""), backup_zip))
                     cfg = project_cfg(item["project"])
                     rows = github_upload_folder(folder, cfg, msg)
                     ok = sum(1 for r in rows if r.get("ok"))
@@ -849,4 +861,4 @@ with tabs[5]:
     with st.expander("▶ 승인대기/승인 목록", expanded=False):
         show_rows(load_status().get("pending", []))
     with st.expander("▶ 완성 파일 목록/다운로드", expanded=False):
-        show_final_file_board()
+        show_final_file_board(key_prefix="records_board")
