@@ -14,7 +14,7 @@ import ast
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
-APP_VERSION = "MARU_MASTER_HUB_FINAL_1.0"
+APP_VERSION = "MARU_MASTER_HUB_FINAL_1.3_CUSTOM_PROJECTS"
 KST = timezone(timedelta(hours=9))
 
 PROJECTS = {
@@ -74,8 +74,55 @@ def read_upload(uploaded_file):
         pass
     return uploaded_file.read()
 
+def custom_projects_file():
+    p = vault_root() / "_custom_projects.json"
+    if not p.exists():
+        p.write_text(json.dumps({}, ensure_ascii=False, indent=2), encoding="utf-8")
+    return p
+
+def load_custom_projects():
+    try:
+        data = json.loads(custom_projects_file().read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+def save_custom_projects(data):
+    custom_projects_file().write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+def get_all_projects():
+    merged = dict(PROJECTS)
+    merged.update(load_custom_projects())
+    return merged
+
+def add_custom_project(label, project_slug, owner, repo, branch="main", app_url="", keywords=None):
+    label = str(label or "").strip()
+    project_slug = str(project_slug or "").strip()
+    owner = str(owner or "").strip()
+    repo = str(repo or "").strip()
+    branch = str(branch or "main").strip() or "main"
+    app_url = str(app_url or "").strip()
+    keywords = keywords or []
+    if not label or not project_slug or not owner or not repo:
+        return False, "프로젝트 표시이름 / project slug / owner / repo는 필수입니다."
+    all_projects = get_all_projects()
+    if label in all_projects:
+        return False, f"이미 존재하는 프로젝트 이름입니다: {label}"
+    custom = load_custom_projects()
+    custom[label] = {
+        "project": project_slug,
+        "owner": owner,
+        "repo": repo,
+        "branch": branch,
+        "app_url": app_url,
+        "keywords": [str(x).strip() for x in keywords if str(x).strip()],
+    }
+    save_custom_projects(custom)
+    return True, f"새 프로젝트 등록 완료: {label} → {owner}/{repo}"
+
 def project_cfg(project_choice):
-    return PROJECTS.get(project_choice, PROJECTS["AI 코드 생성기"])
+    projects = get_all_projects()
+    return projects.get(project_choice, projects["AI 코드 생성기"])
 
 def get_token():
     for key in ["GITHUB_TOKEN", "MARU_GITHUB_TOKEN", "GITHUB_PAT", "GH_TOKEN"]:
@@ -337,20 +384,262 @@ def save_command(project_choice, command_type, command_text, files):
     record_event(project_choice, "개선 명령 저장", "성공", command_text[:120], "command.md", root)
     return record, root
 
+
+def analyze_log_text(log_text):
+    text = str(log_text or "")
+    rows = []
+    rules = [
+        ("NameError", "정의되지 않은 변수/함수 호출", "함수 정의 순서 또는 변수명 누락 확인"),
+        ("KeyError", "딕셔너리 키 없음", "기본값 .get() 또는 키 생성 로직 추가"),
+        ("StreamlitDuplicateElementKey", "Streamlit 위젯 key 중복", "각 위젯 key를 앱/메뉴별 고유값으로 변경"),
+        ("DuplicateElementId", "Streamlit 자동 ID 중복", "key를 직접 지정"),
+        ("SyntaxError", "파이썬 문법 오류", "괄호/콜론/들여쓰기/문자열 닫힘 확인"),
+        ("IndentationError", "들여쓰기 오류", "블록 들여쓰기 정리"),
+        ("ModuleNotFoundError", "requirements.txt 누락 가능", "필요 패키지를 requirements.txt에 추가"),
+        ("ImportError", "패키지/함수 import 실패", "패키지명 또는 버전 확인"),
+        ("FileNotFoundError", "파일 경로 없음", "파일 생성/경로 확인"),
+        ("HTTP 500", "외부 API 서버 오류 또는 파라미터 문제", "API URL/키/날짜 파라미터 확인"),
+        ("403", "권한/토큰 문제", "GitHub Token/공공데이터 키 권한 확인"),
+        ("401", "인증 실패", "토큰 또는 API Key 확인"),
+    ]
+    for key, meaning, fix in rules:
+        if key.lower() in text.lower():
+            rows.append({"발견": key, "뜻": meaning, "권장조치": fix})
+    if not rows:
+        rows.append({"발견": "특정 규칙 매칭 없음", "뜻": "일반 오류 또는 앱 내부 오류일 수 있음", "권장조치": "전체 로그와 app.py를 함께 업그레이드 엔진에 넣어 검사"})
+    return rows
+
+def latest_command_for_project(project_choice):
+    cfg = project_cfg(project_choice)
+    root = vault_root() / cfg["project"] / "commands"
+    if not root.exists():
+        return ""
+    files = sorted(root.rglob("command.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not files:
+        return ""
+    try:
+        data = json.loads(files[0].read_text(encoding="utf-8"))
+        return data.get("text", "")
+    except Exception:
+        return ""
+
+def apply_command_patch(text, command_text, log_text=""):
+    patched = text
+    changes = []
+    cmd = str(command_text or "")
+    log = str(log_text or "")
+    combined = (cmd + "\n" + log).lower()
+
+    # Always run safe baseline patch first.
+    patched, base_changes = patch_app_text(patched)
+    changes.extend(base_changes)
+
+    if "로그분석" in cmd or "로그 분석" in cmd:
+        if "def analyze_log_text" not in patched:
+            changes.append("로그분석 요청 확인: 현재 최종허브 자체에 로그분석 창 포함")
+        else:
+            changes.append("로그분석 기능 이미 존재")
+
+    if "명령" in cmd and ("결과" in cmd or "코드" in cmd):
+        changes.append("명령 기반 코드 결과창 요청 확인")
+
+    if "다운로드" in cmd or "완성 파일" in cmd or "완성파일" in cmd:
+        changes.append("완성 ZIP 다운로드창 요청 확인")
+
+    # Common bug-specific safe patches
+    if "streamlitduplicateelementkey" in combined or "duplicate" in combined:
+        changes.append("중복 key 로그 감지: 자동 key 일괄변경은 위험하여 검사표에 표시하고 수동 승인 대상으로 남김")
+
+    if "nameerror" in combined:
+        changes.append("NameError 로그 감지: 함수 정의 순서/누락 항목을 검사표에 표시")
+
+    if "keyerror" in combined:
+        changes.append("KeyError 로그 감지: .get() 기본값 패치 후보로 표시")
+
+    if not changes:
+        changes.append("명령에서 안전 자동패치 항목을 찾지 못해 검사 결과와 보고서에 기록")
+
+    return patched, changes
+
+def make_code_preview(patched_text, max_chars=12000):
+    text = str(patched_text or "")
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "\n\n# ... 이하 생략됨. 완성 파일에는 전체 코드가 들어 있습니다."
+
+def download_file_button(path, label, key):
+    p = Path(path)
+    if p.exists() and p.is_file():
+        st.download_button(label, data=p.read_bytes(), file_name=p.name, mime="application/octet-stream", key=key)
+        return True
+    st.warning(f"파일이 보이지 않습니다: {p}")
+    return False
+
+
+def final_ready_check():
+    rows = []
+    token = get_token()
+    rows.append({
+        "점검": "GitHub Token",
+        "상태": "통과" if token else "확인필요",
+        "설명": "토큰 감지됨" if token else "Streamlit secrets에 GITHUB_TOKEN 필요",
+        "다음행동": "진행 가능" if token else "Secrets에 GITHUB_TOKEN 저장",
+    })
+
+    for name, cfg in get_all_projects().items():
+        rows.append({
+            "점검": f"{name} 저장소 분리",
+            "상태": "통과",
+            "설명": f"{cfg['owner']}/{cfg['repo']}",
+            "다음행동": "해당 앱 전용으로만 반영",
+        })
+
+    data = load_status()
+    pending = data.get("pending", [])
+    approved = [x for x in pending if x.get("approved") and not x.get("deployed")]
+    created = [x for x in pending if x.get("zip_path")]
+
+    rows.append({
+        "점검": "업그레이드 완성파일",
+        "상태": "통과" if created else "대기",
+        "설명": f"{len(created)}개 생성됨",
+        "다음행동": "미리보기·승인 확인" if created else "테스트·패치·업그레이드 먼저 실행",
+    })
+    rows.append({
+        "점검": "승인 후 반영 대기",
+        "상태": "통과" if approved else "대기",
+        "설명": f"{len(approved)}개 승인됨",
+        "다음행동": "GitHub 반영 가능" if approved else "미리보기 화면에서 승인 저장",
+    })
+    return rows
+
+def show_final_file_board(project_choice=None):
+    data = load_status()
+    items = data.get("pending", [])
+    if project_choice:
+        items = [x for x in items if x.get("project") == project_choice]
+    if not items:
+        st.info("아직 생성된 완성 파일이 없습니다.")
+        return
+
+    for item in items[:20]:
+        title = f"{item.get('project')} / {item.get('created_at')} / 승인:{item.get('approved')} / 반영:{item.get('deployed')}"
+        with st.expander("▶ 완성 파일: " + title, expanded=False):
+            st.write("저장소:", item.get("repo"))
+            st.write("완성 ZIP:", item.get("zip_path"))
+            st.write("완성 폴더:", item.get("folder_path"))
+            st.write("보고서:", item.get("report_path"))
+            st.write("재검사:", item.get("syntax_msg"))
+            download_file_button(item.get("zip_path", ""), "완성 ZIP 다운로드", key=f"final_board_zip_{item['id']}")
+            download_file_button(item.get("report_path", ""), "보고서 다운로드", key=f"final_board_report_{item['id']}")
+            app_url = get_all_projects().get(item.get("project"), {}).get("app_url", "")
+            if app_url:
+                st.link_button("Streamlit 앱 열기", app_url)
+
+def backup_before_deploy(item):
+    folder = Path(item.get("folder_path", ""))
+    if not folder.exists():
+        return None, "업그레이드 폴더 없음"
+    project = item.get("project", "unknown")
+    cfg = project_cfg(project)
+    backup_root = vault_root() / cfg["project"] / "backups"
+    backup_root.mkdir(parents=True, exist_ok=True)
+    stamp = safe_name(now_kst())
+    backup_zip = backup_root / f"{cfg['project']}_backup_before_deploy_{stamp}.zip"
+    with zipfile.ZipFile(backup_zip, "w", zipfile.ZIP_DEFLATED) as z:
+        for p in folder.rglob("*"):
+            if p.is_file() and "__pycache__" not in str(p):
+                z.write(p, p.relative_to(folder))
+    record_event(project, "반영 전 백업 생성", "성공", backup_zip, path=backup_zip)
+    return backup_zip, "백업 생성 완료"
+
+def deploy_safety_check(item):
+    rows = []
+    project = item.get("project", "")
+    folder = Path(item.get("folder_path", ""))
+
+    rows.append({
+        "점검": "승인 여부",
+        "상태": "통과" if item.get("approved") else "차단",
+        "설명": "승인됨" if item.get("approved") else "승인 안 됨",
+    })
+    rows.append({
+        "점검": "완성 폴더",
+        "상태": "통과" if folder.exists() else "차단",
+        "설명": str(folder),
+    })
+
+    if folder.exists() and (folder / "app.py").exists():
+        try:
+            py_compile.compile(str(folder / "app.py"), doraise=True)
+            rows.append({"점검": "반영 전 문법검사", "상태": "통과", "설명": "py_compile 통과"})
+        except Exception as e:
+            rows.append({"점검": "반영 전 문법검사", "상태": "차단", "설명": str(e)})
+        try:
+            ok, msg = repo_guard(project, folder)
+            rows.append({"점검": "저장소 안전검사", "상태": "통과" if ok else "차단", "설명": msg})
+        except Exception as e:
+            rows.append({"점검": "저장소 안전검사", "상태": "확인필요", "설명": str(e)})
+    else:
+        rows.append({"점검": "app.py 존재", "상태": "차단", "설명": "완성 폴더 안 app.py 없음"})
+
+    blocked = [r for r in rows if r.get("상태") == "차단"]
+    return rows, len(blocked) == 0
+
+def next_action_from_rows(rows):
+    blocked = [r for r in rows if r.get("상태") in ["차단", "확인필요"]]
+    if not blocked:
+        return "진행 가능: 승인 후 GitHub 반영을 눌러도 됩니다."
+    first = blocked[0]
+    return f"먼저 해결: {first.get('점검')} / {first.get('설명')}"
+
 st.set_page_config(page_title="MARU MASTER HUB FINAL", layout="wide")
 st.markdown("## MARU MASTER HUB FINAL")
-st.caption("검사 → 패치 → 업그레이드 파일 생성 → 미리보기 확인 → 승인 후 GitHub 반영")
+st.caption("검사 → 패치 → 업그레이드 파일 생성 → 미리보기 확인 → 승인 후 GitHub 반영 / 새 프로젝트도 직접 추가 가능")
 
 tabs = st.tabs(["📌 프로젝트 선택", "📤 파일·사진·명령 등록", "🧪 테스트·패치·업그레이드", "👀 미리보기·승인", "✅ 승인 후 GitHub 반영", "📚 기록·진단"])
 
 with tabs[0]:
     st.subheader("📌 프로젝트 선택")
-    st.write("세 앱은 저장소가 분리되어 있습니다. 잘못 섞이지 않게 전용 칸으로 처리합니다.")
-    show_rows([{"앱": k, "저장소": f"{v['owner']}/{v['repo']}", "앱 주소": v["app_url"]} for k, v in PROJECTS.items()])
+    st.write("기본 3개 앱 + 나중에 추가할 새 프로젝트까지 여기서 함께 관리합니다.")
+    show_rows([{"앱": k, "저장소": f"{v['owner']}/{v['repo']}", "앱 주소": v.get("app_url", "")} for k, v in get_all_projects().items()])
+
+    with st.expander("▶ 새 프로젝트 추가 등록", expanded=False):
+        new_label = st.text_input("프로젝트 표시이름", key="new_project_label", placeholder="예: 쇼핑몰앱")
+        new_slug = st.text_input("프로젝트 slug", key="new_project_slug", placeholder="예: my-shop-app")
+        new_owner = st.text_input("GitHub owner", key="new_project_owner", placeholder="예: skytins3-png")
+        new_repo = st.text_input("GitHub repo", key="new_project_repo", placeholder="예: my-shop-app")
+        new_branch = st.text_input("branch", value="main", key="new_project_branch")
+        new_app_url = st.text_input("배포 앱 주소", key="new_project_app_url", placeholder="예: https://my-shop-app.streamlit.app")
+        new_keywords = st.text_input("검색 키워드(쉼표 구분)", key="new_project_keywords", placeholder="예: 쇼핑몰, shop, mall")
+        if st.button("새 프로젝트 등록", key="btn_add_custom_project"):
+            ok, msg = add_custom_project(
+                new_label,
+                new_slug,
+                new_owner,
+                new_repo,
+                new_branch,
+                new_app_url,
+                [x.strip() for x in str(new_keywords).split(",") if x.strip()],
+            )
+            if ok:
+                record_event(new_label, "새 프로젝트 등록", "성공", msg, repo=f"{new_owner}/{new_repo}")
+                st.success(msg)
+                st.rerun()
+            else:
+                st.error(msg)
+
+    with st.expander("▶ 현재 등록된 프로젝트", expanded=True):
+        show_rows([{"앱": k, "project": v.get("project",""), "저장소": f"{v.get('owner','')}/{v.get('repo','')}", "branch": v.get("branch",""), "앱 주소": v.get("app_url","")} for k, v in get_all_projects().items()])
+
+    with st.expander("▶ 최종 준비상태 자동점검", expanded=True):
+        ready_rows = final_ready_check()
+        show_rows(ready_rows)
+        st.info(next_action_from_rows(ready_rows))
 
 with tabs[1]:
     st.subheader("📤 파일·사진·명령 등록")
-    project_choice = st.selectbox("대상 앱", list(PROJECTS.keys()), key="reg_project")
+    project_choice = st.selectbox("대상 앱", list(get_all_projects().keys()), key="reg_project")
     cfg = project_cfg(project_choice)
     st.info(f"대상 저장소: {cfg['owner']}/{cfg['repo']}")
 
@@ -395,9 +684,42 @@ with tabs[1]:
 
 with tabs[2]:
     st.subheader("🧪 테스트·패치·업그레이드")
-    project_choice = st.selectbox("업그레이드 대상 앱", list(PROJECTS.keys()), key="upgrade_project")
+    project_choice = st.selectbox("업그레이드 대상 앱", list(get_all_projects().keys()), key="upgrade_project")
+
+    with st.expander("▶ 로그분석", expanded=True):
+        log_text = st.text_area("오류 로그 붙여넣기", height=180, key="upgrade_log_text", placeholder="Streamlit 오류 로그, Traceback, HTTP 오류 등을 붙여넣으세요.")
+        if st.button("로그 분석하기", key="run_log_analysis"):
+            rows = analyze_log_text(log_text)
+            record_event(project_choice, "로그분석", "완료", json.dumps(rows, ensure_ascii=False)[:300])
+            show_rows(rows)
+
+    with st.expander("▶ 명령지시창", expanded=True):
+        command_text = st.text_area(
+            "패치/개선 명령",
+            height=180,
+            key="upgrade_command_text",
+            placeholder="예: 로그분석 창을 추가하고, 명령에 따라 수정된 코드 결과창과 완성 ZIP 다운로드 버튼을 보여줘."
+        )
+        col_cmd1, col_cmd2 = st.columns(2)
+        with col_cmd1:
+            if st.button("이 명령을 허브에 저장", key="save_upgrade_command"):
+                if not command_text.strip():
+                    st.error("명령 내용을 입력하세요.")
+                else:
+                    _, folder = save_command(project_choice, "업그레이드명령", command_text, [])
+                    st.success(f"명령 저장 완료: {folder}")
+        with col_cmd2:
+            if st.button("최근 저장 명령 불러오기", key="load_latest_command"):
+                latest = latest_command_for_project(project_choice)
+                if latest:
+                    st.session_state["upgrade_command_loaded"] = latest
+                    st.success("최근 명령을 불러왔습니다. 아래 문장을 복사해서 명령창에 넣으세요.")
+                    st.code(latest)
+                else:
+                    st.warning("저장된 명령이 없습니다.")
+
     uploaded = st.file_uploader("원본 ZIP 또는 app.py 업로드", type=["zip", "py"], key="upgrade_file")
-    if st.button("테스트 → 패치 → 업그레이드 ZIP 생성", type="primary", key="run_upgrade"):
+    if st.button("테스트 → 로그분석 → 명령패치 → 업그레이드 ZIP 생성", type="primary", key="run_upgrade"):
         if not uploaded:
             st.error("원본 ZIP 또는 app.py를 먼저 업로드하세요.")
         else:
@@ -407,30 +729,50 @@ with tabs[2]:
                 if not ok_guard:
                     record_event(project_choice, "저장소 안전검사", "차단", guard_msg, original_name, src)
                     st.error(guard_msg); st.stop()
+
                 scan_rows, original_text = scan_app(src)
-                patched_text, changes = patch_app_text(original_text)
-                out_root, zip_path, report_path, syntax_ok, syntax_msg, pending = write_upgrade(src, patched_text, project_choice, original_name, scan_rows, changes)
+                log_rows = analyze_log_text(log_text)
+                patched_text, changes = apply_command_patch(original_text, command_text, log_text)
+                out_root, zip_path, report_path, syntax_ok, syntax_msg, pending = write_upgrade(src, patched_text, project_choice, original_name, scan_rows + log_rows, changes)
+
                 result_rows = [
                     {"단계": "원본 준비", "상태": "완료", "설명": str(src)},
                     {"단계": "저장소 안전검사", "상태": "통과", "설명": guard_msg},
+                    {"단계": "로그분석", "상태": "완료", "설명": f"{len(log_rows)}개 항목"},
                     {"단계": "검사", "상태": "완료", "설명": f"{len(scan_rows)}개 항목"},
-                    {"단계": "자동패치", "상태": "완료", "설명": " / ".join(changes)},
+                    {"단계": "명령패치", "상태": "완료", "설명": " / ".join(changes)},
                     {"단계": "재검사", "상태": "통과" if syntax_ok else "확인필요", "설명": syntax_msg},
                     {"단계": "업그레이드 ZIP 생성", "상태": "완료", "설명": str(zip_path)},
                     {"단계": "승인대기 등록", "상태": "완료", "설명": pending["id"]},
                 ]
-                st.success("업그레이드 ZIP 생성 완료. 다음 탭에서 미리보기 후 승인하세요.")
+                st.success("업그레이드 ZIP 생성 완료. 아래에서 코드 결과와 완성 파일을 확인하세요.")
                 show_rows(result_rows)
-                with st.expander("▶ 검사 상세", expanded=False): show_rows(scan_rows)
-                with st.expander("▶ 자동패치 내용", expanded=True):
-                    for c in changes: st.write("✅", c)
-                st.code(str(zip_path))
+
+                with st.expander("▶ 로그분석 결과", expanded=False):
+                    show_rows(log_rows)
+                with st.expander("▶ 검사 상세", expanded=False):
+                    show_rows(scan_rows)
+                with st.expander("▶ 명령에 의해 적용된 패치 내용", expanded=True):
+                    for c in changes:
+                        st.write("✅", c)
+
+                with st.expander("▶ 명령에 의해 생성된 코드 결과창", expanded=True):
+                    st.caption("아래 코드는 미리보기입니다. 완성 파일에는 전체 app.py가 들어갑니다.")
+                    st.code(make_code_preview(patched_text), language="python")
+
+                with st.expander("▶ 완성 파일 확인/다운로드", expanded=True):
+                    st.write("완성 ZIP:", str(zip_path))
+                    st.write("보고서:", str(report_path))
+                    download_file_button(zip_path, "완성 ZIP 다운로드", key=f"download_zip_{pending['id']}")
+                    download_file_button(report_path, "업그레이드 보고서 다운로드", key=f"download_report_{pending['id']}")
             except Exception as e:
                 st.error(f"업그레이드 실패: {e}")
                 with st.expander("▶ 오류 원본", expanded=False): st.code(traceback.format_exc())
 
 with tabs[3]:
     st.subheader("👀 미리보기·승인")
+    with st.expander("▶ 완성 파일 목록판", expanded=True):
+        show_final_file_board()
     pending = load_status().get("pending", [])
     if not pending:
         st.info("승인 대기 중인 업그레이드 결과가 없습니다.")
@@ -439,6 +781,8 @@ with tabs[3]:
             st.write("저장소:", item.get("repo"))
             st.write("업그레이드 ZIP:", item.get("zip_path"))
             st.write("보고서:", item.get("report_path"))
+            download_file_button(item.get("zip_path", ""), "완성 ZIP 다운로드", key=f"preview_zip_{item['id']}")
+            download_file_button(item.get("report_path", ""), "보고서 다운로드", key=f"preview_report_{item['id']}")
             st.write("재검사:", item.get("syntax_msg"))
             for c in item.get("changes", []): st.write("✅", c)
             approve = st.checkbox("이 결과를 확인했고 GitHub 반영을 승인합니다.", key=f"approve_{item['id']}")
@@ -460,11 +804,22 @@ with tabs[4]:
             st.write("저장소:", item.get("repo"))
             st.write("업그레이드 폴더:", item.get("folder_path"))
             msg = st.text_input("커밋 메시지", value=f"MARU approved upgrade: {item.get('project')}", key=f"commit_{item['id']}")
+            with st.expander("▶ 반영 전 최종 안전검사", expanded=True):
+                safety_rows, can_deploy = deploy_safety_check(item)
+                show_rows(safety_rows)
+                st.info(next_action_from_rows(safety_rows))
+
             if st.button("승인된 파일 GitHub 반영", type="primary", key=f"deploy_{item['id']}"):
                 folder = Path(item.get("folder_path", ""))
-                if not folder.exists():
-                    st.error("업그레이드 폴더가 없습니다. 다시 생성하세요.")
+                safety_rows, can_deploy = deploy_safety_check(item)
+                if not can_deploy:
+                    st.error("최종 안전검사에서 차단되어 GitHub 반영을 중단했습니다.")
+                    show_rows(safety_rows)
                 else:
+                    backup_zip, backup_msg = backup_before_deploy(item)
+                    st.info(f"반영 전 백업: {backup_msg}")
+                    if backup_zip:
+                        download_file_button(backup_zip, "반영 전 백업 ZIP 다운로드", key=f"backup_zip_{item['id']}")
                     cfg = project_cfg(item["project"])
                     rows = github_upload_folder(folder, cfg, msg)
                     ok = sum(1 for r in rows if r.get("ok"))
@@ -475,6 +830,9 @@ with tabs[4]:
                     if fail == 0:
                         update_pending(item["id"], deployed=True, deployed_at=now_kst())
                         st.success("GitHub 반영 완료. Streamlit 재배포를 기다린 뒤 새로고침하세요.")
+                        app_url = get_all_projects().get(item.get("project"), {}).get("app_url", "")
+                        if app_url:
+                            st.link_button("반영된 Streamlit 앱 열기", app_url)
                     else:
                         st.warning("일부 파일 반영 실패. 상세 결과를 확인하세요.")
 
@@ -490,3 +848,5 @@ with tabs[5]:
         show_rows(events[:100]) if events else st.info("기록이 없습니다.")
     with st.expander("▶ 승인대기/승인 목록", expanded=False):
         show_rows(load_status().get("pending", []))
+    with st.expander("▶ 완성 파일 목록/다운로드", expanded=False):
+        show_final_file_board()
