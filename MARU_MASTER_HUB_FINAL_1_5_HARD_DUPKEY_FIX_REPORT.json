@@ -1,0 +1,12 @@
+{
+  "syntax_py_compile": true,
+  "syntax_ast_parse": true,
+  "static_duplicate_key_strings": [],
+  "old_final_board_zip_pattern_count": 0,
+  "show_final_file_board_replaced": true,
+  "download_keys_use_widget_key": true,
+  "preview_board_context": true,
+  "records_board_context": true,
+  "bad_items": [],
+  "bad_items_count": 0
+}
