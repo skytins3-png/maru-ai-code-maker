@@ -1,0 +1,11 @@
+{
+  "syntax_py_compile": true,
+  "syntax_ast_parse": true,
+  "duplicate_key_strings": [],
+  "project_separation": true,
+  "upgrade_zip_creation": true,
+  "approval_before_github": true,
+  "github_upload": true,
+  "status_record": true,
+  "bad_items_count": 0
+}
