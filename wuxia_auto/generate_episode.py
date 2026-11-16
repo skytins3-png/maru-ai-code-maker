@@ -10,8 +10,22 @@ DB = ROOT / "episodes.json"
 DATA = json.loads(DB.read_text(encoding="utf-8"))
 TODAY = os.environ.get("WUXIA_PREVIEW_DATE") or datetime.datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat()
 entries = DATA["episodes"]
-if any(e.get("release_at") == TODAY for e in entries):
-    print("Today's chapter already exists:", TODAY)
+scheduled=next((e for e in entries if e.get("release_at")==TODAY),None)
+if scheduled:
+    updated=False
+    for i,p in enumerate(scheduled.get("panels",[])):
+        image=p.get("image")
+        if not image or not (ROOT / image).exists():
+            image=f"assets/chapter-{int(scheduled['id']):03d}-{i+1}.jpg"
+            draw_panel(ROOT / image,int(scheduled["id"]),i,p["zh"],scheduled["title"])
+            p["image"]=image
+            updated=True
+    if updated:
+        DATA["updated"]=TODAY
+        DB.write_text(json.dumps(DATA,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+        print("Illustrated pre-scheduled chapter",scheduled["id"],"with",len(scheduled.get("panels",[])),"original panels")
+    else:
+        print("Today's illustrated chapter already exists:",TODAY)
     sys.exit(0)
 previous = entries[-1]
 idx = int(previous["id"]) + 1
