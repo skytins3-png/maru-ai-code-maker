@@ -23,15 +23,30 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Detect whether Pages is configured
+        id: pagescheck
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/pages" >/dev/null 2>&1; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "GitHub Pages not enabled. Online episodes are still posted as Issues."
+          fi
       - name: Stage only wuxia site
+        if: steps.pagescheck.outputs.ready == 'true'
         run: |
           mkdir -p _site
           cp index.html episodes.json _site/
           cp -R assets _site/
           touch _site/.nojekyll
       - uses: actions/configure-pages@v5
+        if: steps.pagescheck.outputs.ready == 'true'
       - uses: actions/upload-pages-artifact@v4
+        if: steps.pagescheck.outputs.ready == 'true'
         with:
           path: _site
       - uses: actions/deploy-pages@v4
+        if: steps.pagescheck.outputs.ready == 'true'
         id: deployment
