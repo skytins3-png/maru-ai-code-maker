@@ -7,7 +7,7 @@
 "use strict";
 let ALL=[],ep=0,tab="comic",pos=0,repeatToken=0,selected=null;
 const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const day=()=>new Intl.DateTimeFormat("sv-SE",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(Date.now()-5*60*60*1000));
+const day=()=>new Intl.DateTimeFormat("sv-SE",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 const key=(part)=>"maru-wuxia-"+(ALL[ep]?.id??"001")+"-"+part;
 const store=(k,v)=>localStorage.setItem(key(k),JSON.stringify(v));
 const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(key(k)))??d}catch{return d}};
