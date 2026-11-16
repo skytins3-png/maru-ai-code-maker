@@ -28,29 +28,23 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install comics illustration library
-        run: pip install Pillow==11.3.0
-      - name: Check AI model access on first install
+        run: pip install Pillow==11.3.0 pypinyin jieba
+      - name: Check the next scheduled issue in an isolated test folder
         if: github.event_name == 'push'
-        continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          WUXIA_PREVIEW_DATE: '2026-11-18'
         run: |
+          mkdir -p /tmp/maru-wuxia-verify
+          cp episodes.json /tmp/maru-wuxia-verify/
+          cp -a assets wuxia_auto /tmp/maru-wuxia-verify/
+          python /tmp/maru-wuxia-verify/wuxia_auto/generate_episode.py
           python - <<'PY'
-          import os, json, urllib.request, urllib.error
-          obj = {"model":"openai/gpt-4.1-mini",
-                 "messages":[{"role":"user","content":"Return only {\"ok\": true}"}],
-                 "max_tokens":40,"response_format":{"type":"json_object"}}
-          req = urllib.request.Request("https://models.github.ai/inference/chat/completions",
-                data=json.dumps(obj).encode(),method="POST",
-                headers={"Authorization":"Bearer "+os.environ["GITHUB_TOKEN"],
-                  "Content-Type":"application/json","Accept":"application/vnd.github+json"})
-          try:
-              with urllib.request.urlopen(req,timeout=40) as f:
-                  body=json.load(f)
-              print("GitHub Models response:",body["choices"][0]["message"]["content"][:100])
-          except urllib.error.HTTPError as e:
-              print("GitHub Models unavailable; fallback episode may be used. HTTP",e.code)
-              raise
+          import json
+          data=json.load(open('/tmp/maru-wuxia-verify/episodes.json'))
+          ch=data['episodes'][-1]
+          assert ch['id']=='002' and ch['release_at']=='2026-11-18'
+          assert len(ch['panels'])>=5 and len(ch['words'])>=8
+          print('Next chapter test succeeded:',ch['id'],len(ch['panels']),'illustrated scenes and',len(ch['words']),'word occurrences')
           PY
       - name: Author the next original chapter and study material
         env:
