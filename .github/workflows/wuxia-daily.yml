@@ -1,0 +1,50 @@
+name: MARU Daily Wuxia Chinese Comic
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/wuxia-daily.yml']
+  schedule:
+    - cron: '0 20 * * *'  # 05:00 Asia/Seoul (UTC+9)
+  workflow_dispatch:
+permissions:
+  contents: write
+  issues: write
+  models: read
+concurrency:
+  group: maru-wuxia-daily
+  cancel-in-progress: false
+jobs:
+  new-episode:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout separate wuxia serial branch
+        uses: actions/checkout@v4
+        with:
+          ref: maru-wuxia-serial
+          persist-credentials: true
+      - name: Configure Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install comics illustration library
+        run: pip install Pillow==11.3.0
+      - name: Author the next original chapter and study material
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python wuxia_auto/generate_episode.py
+      - name: Commit episodes and illustrated panels
+        run: |
+          git config user.name "MARU Wuxia Daily"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add episodes.json assets/
+          if ! git diff --cached --quiet; then
+            git commit -m "Daily wuxia chapter $(date -u +%F)"
+            git push origin HEAD:maru-wuxia-serial
+          else
+            echo "No new episode to commit."
+          fi
+      - name: Publish publicly readable online episode
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python wuxia_auto/publish_issue.py
