@@ -29,6 +29,29 @@ jobs:
           python-version: '3.11'
       - name: Install comics illustration library
         run: pip install Pillow==11.3.0
+      - name: Check AI model access on first install
+        if: github.event_name == 'push'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import os, json, urllib.request, urllib.error
+          obj = {"model":"openai/gpt-4.1-mini",
+                 "messages":[{"role":"user","content":"Return only {\"ok\": true}"}],
+                 "max_tokens":40,"response_format":{"type":"json_object"}}
+          req = urllib.request.Request("https://models.github.ai/inference/chat/completions",
+                data=json.dumps(obj).encode(),method="POST",
+                headers={"Authorization":"Bearer "+os.environ["GITHUB_TOKEN"],
+                  "Content-Type":"application/json","Accept":"application/vnd.github+json"})
+          try:
+              with urllib.request.urlopen(req,timeout=40) as f:
+                  body=json.load(f)
+              print("GitHub Models response:",body["choices"][0]["message"]["content"][:100])
+          except urllib.error.HTTPError as e:
+              print("GitHub Models unavailable; fallback episode may be used. HTTP",e.code)
+              raise
+          PY
       - name: Author the next original chapter and study material
         env:
           GITHUB_TOKEN: ${{ github.token }}
