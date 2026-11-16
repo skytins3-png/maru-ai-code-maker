@@ -8,7 +8,7 @@ from draw_panel import draw_panel
 ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / "episodes.json"
 DATA = json.loads(DB.read_text(encoding="utf-8"))
-TODAY = datetime.datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat()
+TODAY = os.environ.get("WUXIA_PREVIEW_DATE") or datetime.datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat()
 entries = DATA["episodes"]
 if any(e.get("release_at") == TODAY for e in entries):
     print("Today's chapter already exists:", TODAY)
@@ -116,15 +116,60 @@ def fallback():
             "words":[{"zh":w[0],"py":w[1],"ko":w[2]} for w in ws],
             "dialects":[{"region":"베이징 구어","zh":"你打哪儿知道的？","py":"Nǐ dǎ nǎr zhīdao de?","ko":"그걸 어디서 알았어?","note":"‘哪儿’의 儿化가 나타나는 자연스러운 구어 표현"}]}
 
-try:
-    record=request_story()
-    source="github-models"
-except (Exception,) as err:
-    print("AI service unavailable:",repr(err))
-    record=fallback()
-    if record is None:
-        raise RuntimeError("AI unavailable and no vetted fallback chapter; refusing to publish filler") from err
-    source="vetted-fallback"
+def from_curated_backlog():
+    """Use fully authored, continuity-checked original chapters without external AI credentials."""
+    bank=ROOT/"wuxia_auto"/"backlog.json"
+    if not bank.exists():
+        return None
+    items=json.loads(bank.read_text(encoding="utf-8")).get("episodes",[])
+    chapter=next((x for x in items if int(x["id"])==idx),None)
+    if not chapter:
+        return None
+    from pypinyin import lazy_pinyin, Style
+    import jieba
+    def pinyin(zh):
+        return " ".join(lazy_pinyin(zh,style=Style.TONE))
+    glossary=chapter["glossary"]
+    for token in glossary:
+        jieba.add_word(token,freq=5000000)
+    panels=[{"zh":p["zh"],"ko":p["ko"],"py":pinyin(p["zh"]),
+             "note":p.get("note") or chapter["grammar"]} for p in chapter["panels"]]
+    words=[]
+    for panel in panels:
+        for token in jieba.lcut(panel["zh"]):
+            if not re.search(r"[\u3400-\u9fff]",token):
+                continue
+            meaning=glossary.get(token,"문맥 속 뜻: "+panel["ko"])
+            words.append({"zh":token,"py":pinyin(token),"ko":meaning,
+                          "usage":"해당 대사에서 사용: "+panel["zh"]})
+    if idx%4==0:
+        dialects=[{"region":"베이징 구어","zh":"你打哪儿来的？",
+                   "py":"Nǐ dǎ nǎr lái de?","ko":"너 어디서 왔어?",
+                   "note":"‘哪儿’의 儿化를 확인하세요."}]
+    elif idx%4==1:
+        dialects=[{"region":"동북 지역 구어","zh":"你干哈呢？",
+                   "py":"Nǐ gàn há ne?","ko":"뭐 하고 있어?",
+                   "note":"干哈는 동북 지역에서 쓰는 구어 표현입니다."}]
+    elif idx%4==2:
+        dialects=[{"region":"쓰촨 지역 어휘","zh":"巴适得很。",
+                   "py":"Bāshì de hěn.","ko":"아주 좋다, 아주 편하다.",
+                   "note":"巴适는 쓰촨 지역에서 널리 쓰는 표현입니다. 실제 발음은 지역에 따라 달라질 수 있습니다."}]
+    else:
+        dialects=[{"region":"대만식 보통화 어휘","zh":"这个很赞。",
+                   "py":"Zhège hěn zàn.","ko":"이거 정말 좋아.",
+                   "note":"讚/赞을 칭찬의 뜻으로 쓰는 표현. 지역과 세대에 따라 사용이 다를 수 있습니다."}]
+    return {"title":chapter["title"],"teaser":chapter["teaser"],"prep":chapter["prep"],
+            "grammar":chapter["grammar"],"panels":panels,"words":words,"dialects":dialects}
+
+record=from_curated_backlog()
+if record:
+    source="curated-original"
+else:
+    # GitHub Models was retired in July 2026. Never falsely claim a new
+    # AI-written chapter or recycle old content after the prepared backlog runs out.
+    # A future AI provider integration must be explicitly configured and tested.
+    print("No vetted new chapter available; source backlog exhausted for",idx)
+    raise RuntimeError("Backlog exhausted; online AI story generation is not connected")
 
 if not isinstance(record,dict):
     raise ValueError("Chapter response is not an object")
