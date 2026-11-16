@@ -29,22 +29,28 @@ jobs:
           python-version: '3.11'
       - name: Install comics illustration library
         run: pip install Pillow==11.3.0 pypinyin jieba
-      - name: Check the next scheduled issue in an isolated test folder
+      - name: Test pre-scheduled art and later story generation in isolation
         if: github.event_name == 'push'
-        env:
-          WUXIA_PREVIEW_DATE: '2026-11-18'
         run: |
-          mkdir -p /tmp/maru-wuxia-verify
-          cp episodes.json /tmp/maru-wuxia-verify/
-          cp -a assets wuxia_auto /tmp/maru-wuxia-verify/
-          python /tmp/maru-wuxia-verify/wuxia_auto/generate_episode.py
+          mkdir -p /tmp/maru-wuxia-early /tmp/maru-wuxia-later
+          cp episodes.json /tmp/maru-wuxia-early/
+          cp -a assets wuxia_auto /tmp/maru-wuxia-early/
+          cp episodes.json /tmp/maru-wuxia-later/
+          cp -a assets wuxia_auto /tmp/maru-wuxia-later/
+          WUXIA_PREVIEW_DATE=2026-11-18 python /tmp/maru-wuxia-early/wuxia_auto/generate_episode.py
+          WUXIA_PREVIEW_DATE=2026-11-25 python /tmp/maru-wuxia-later/wuxia_auto/generate_episode.py
           python - <<'PY'
-          import json
-          data=json.load(open('/tmp/maru-wuxia-verify/episodes.json'))
-          ch=data['episodes'][-1]
-          assert ch['id']=='002' and ch['release_at']=='2026-11-18'
-          assert len(ch['panels'])>=5 and len(ch['words'])>=8
-          print('Next chapter test succeeded:',ch['id'],len(ch['panels']),'illustrated scenes and',len(ch['words']),'word occurrences')
+          import json, pathlib
+          early=pathlib.Path('/tmp/maru-wuxia-early')
+          later=pathlib.Path('/tmp/maru-wuxia-later')
+          ed=json.loads((early/'episodes.json').read_text())['episodes']
+          ch=next(e for e in ed if e['release_at']=='2026-11-18')
+          assert len(ch['panels'])>=5 and all((early/p['image']).exists() for p in ch['panels'])
+          ld=json.loads((later/'episodes.json').read_text())['episodes']
+          next_ch=next(e for e in ld if e['release_at']=='2026-11-25')
+          assert next_ch['id']=='009' and len(next_ch['words'])>=8
+          assert all((later/p['image']).exists() for p in next_ch['panels'])
+          print('Verified future daily release: artwork on 11/18 and fully studied chapter 009 on 11/25')
           PY
       - name: Author the next original chapter and study material
         env:
