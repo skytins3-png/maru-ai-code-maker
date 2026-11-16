@@ -1,0 +1,37 @@
+name: Publish Wuxia Learning Website
+on:
+  push:
+    branches: [maru-wuxia-serial]
+    paths:
+      - 'index.html'
+      - 'episodes.json'
+      - 'assets/**'
+      - '.github/workflows/deploy-wuxia-pages.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: wuxia-pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage only wuxia site
+        run: |
+          mkdir -p _site
+          cp index.html episodes.json _site/
+          cp -R assets _site/
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - uses: actions/deploy-pages@v4
+        id: deployment
