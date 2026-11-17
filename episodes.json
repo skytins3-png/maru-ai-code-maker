@@ -1,6 +1,6 @@
 {
   "series": "江湖风云录",
-  "updated": "2026-11-17",
+  "updated": "2026-11-18",
   "episodes": [
     {
       "id": "001",
@@ -251,31 +251,36 @@
           "zh": "别回头，窗外有人。",
           "py": "Bié huítóu, chuāngwài yǒu rén.",
           "ko": "뒤돌아보지 마. 창밖에 사람이 있어.",
-          "note": "别 + 동사: ~하지 마라."
+          "note": "别 + 동사: ~하지 마라.",
+          "image": "assets/chapter-002-1.jpg"
         },
         {
           "zh": "你师父把玉佩交给你时，说了什么？",
           "py": "Nǐ shīfu bǎ yùpèi jiāo gěi nǐ shí, shuō le shénme?",
           "ko": "네 사부가 옥패를 건네줄 때 뭐라고 했느냐?",
-          "note": "把 + 목적어 + 交给 + 사람: 물건을 건네다."
+          "note": "把 + 목적어 + 交给 + 사람: 물건을 건네다.",
+          "image": "assets/chapter-002-2.jpg"
         },
         {
           "zh": "他说，不到七星峰，千万别打开剑鞘。",
           "py": "Tā shuō, bú dào Qīxīng Fēng, qiānwàn bié dǎkāi jiànqiào.",
           "ko": "칠성봉에 도착하기 전에는 절대로 검집을 열지 말라고 했어.",
-          "note": "不到…，千万别…: 그곳에 이르기 전엔 절대 ~하지 마라."
+          "note": "不到…，千万别…: 그곳에 이르기 전엔 절대 ~하지 마라.",
+          "image": "assets/chapter-002-3.jpg"
         },
         {
           "zh": "青风！把东西交出来！",
           "py": "Qīngfēng! Bǎ dōngxi jiāo chūlai!",
           "ko": "청풍! 물건을 내놓아라!",
-          "note": "交出来: 내놓다. 명령조로 들려요."
+          "note": "交出来: 내놓다. 명령조로 들려요.",
+          "image": "assets/chapter-002-4.jpg"
         },
         {
           "zh": "小心！他们要的不是玉佩！",
           "py": "Xiǎoxīn! Tāmen yào de bú shì yùpèi!",
           "ko": "조심해! 놈들이 노리는 건 옥패가 아니야!",
-          "note": "要的不是…: 원하는 것은 ~이 아니다."
+          "note": "要的不是…: 원하는 것은 ~이 아니다.",
+          "image": "assets/chapter-002-5.jpg"
         }
       ],
       "words": [
