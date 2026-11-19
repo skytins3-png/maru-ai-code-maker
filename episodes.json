@@ -1,6 +1,6 @@
 {
   "series": "江湖风云录",
-  "updated": "2026-11-18",
+  "updated": "2026-11-19",
   "episodes": [
     {
       "id": "001",
@@ -553,31 +553,36 @@
           "zh": "原来，他们一直在找我的剑鞘。",
           "py": "Yuánlái, tāmen yìzhí zài zhǎo wǒ de jiànqiào.",
           "ko": "알고 보니 놈들은 계속 내 검집을 찾고 있었어.",
-          "note": "原来: 알고 보니. 一直: 줄곧."
+          "note": "原来: 알고 보니. 一直: 줄곧.",
+          "image": "assets/chapter-003-1.jpg"
         },
         {
           "zh": "跟我走，地窖里有条密道。",
           "py": "Gēn wǒ zǒu, dìjiào lǐ yǒu tiáo mìdào.",
           "ko": "날 따라와. 지하 저장고에 비밀 통로가 있어.",
-          "note": "跟我走: 따라와. 条는 길을 세는 양사."
+          "note": "跟我走: 따라와. 条는 길을 세는 양사.",
+          "image": "assets/chapter-003-2.jpg"
         },
         {
           "zh": "这条路通向哪里？",
           "py": "Zhè tiáo lù tōngxiàng nǎlǐ?",
           "ko": "이 길은 어디로 이어지지?",
-          "note": "通向 + 장소: ~로 이어지다."
+          "note": "通向 + 장소: ~로 이어지다.",
+          "image": "assets/chapter-003-3.jpg"
         },
         {
           "zh": "通向你师父不肯说出的过去。",
           "py": "Tōngxiàng nǐ shīfu bù kěn shuō chū de guòqù.",
           "ko": "네 사부가 끝내 말하지 않으려 했던 과거로.",
-          "note": "不肯 + 동사: 기꺼이 ~하지 않으려 하다."
+          "note": "不肯 + 동사: 기꺼이 ~하지 않으려 하다.",
+          "image": "assets/chapter-003-4.jpg"
         },
         {
           "zh": "等等！墙上怎么会有我的名字？",
           "py": "Děngdeng! Qiáng shàng zěnme huì yǒu wǒ de míngzi?",
           "ko": "잠깐! 벽에 어떻게 내 이름이 있는 거지?",
-          "note": "怎么会: 어떻게 그럴 수 있지?"
+          "note": "怎么会: 어떻게 그럴 수 있지?",
+          "image": "assets/chapter-003-5.jpg"
         }
       ],
       "words": [
