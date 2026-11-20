@@ -1,6 +1,6 @@
 {
   "series": "江湖风云录",
-  "updated": "2026-11-19",
+  "updated": "2026-11-20",
   "episodes": [
     {
       "id": "001",
@@ -885,31 +885,36 @@
           "zh": "师父为什么把这东西留给我？",
           "py": "Shīfu wèishénme bǎ zhè dōngxi liú gěi wǒ?",
           "ko": "사부는 왜 이 물건을 내게 남기셨지?",
-          "note": "留给 + 사람: 남겨 주다."
+          "note": "留给 + 사람: 남겨 주다.",
+          "image": "assets/chapter-004-1.jpg"
         },
         {
           "zh": "别动！上面的字是用血写的。",
           "py": "Bié dòng! Shàngmiàn de zì shì yòng xuè xiě de.",
           "ko": "건드리지 마! 위의 글씨는 피로 쓴 거야.",
-          "note": "是…的: 동작의 방식·상황을 강조."
+          "note": "是…的: 동작의 방식·상황을 강조.",
+          "image": "assets/chapter-004-2.jpg"
         },
         {
           "zh": "名单上有七个人。",
           "py": "Míngdān shàng yǒu qī ge rén.",
           "ko": "명단에는 일곱 사람이 있어.",
-          "note": "숫자 + 个 + 人: 사람 수 세기."
+          "note": "숫자 + 个 + 人: 사람 수 세기.",
+          "image": "assets/chapter-004-3.jpg"
         },
         {
           "zh": "最后一个名字，竟然是我的！",
           "py": "Zuìhòu yí ge míngzi, jìngrán shì wǒ de!",
           "ko": "마지막 이름이 놀랍게도 내 이름이야!",
-          "note": "竟然: 뜻밖에도."
+          "note": "竟然: 뜻밖에도.",
+          "image": "assets/chapter-004-4.jpg"
         },
         {
           "zh": "不对，这张纸是今天写的。",
           "py": "Bú duì, zhè zhāng zhǐ shì jīntiān xiě de.",
           "ko": "아니야, 이 종이는 오늘 쓴 거야.",
-          "note": "张: 종이·평면 물건을 세는 양사."
+          "note": "张: 종이·평면 물건을 세는 양사.",
+          "image": "assets/chapter-004-5.jpg"
         }
       ],
       "words": [
