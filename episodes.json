@@ -1,6 +1,6 @@
 {
   "series": "江湖风云录",
-  "updated": "2026-11-20",
+  "updated": "2026-11-21",
   "episodes": [
     {
       "id": "001",
@@ -1217,31 +1217,36 @@
           "zh": "站住！再往前一步，我就出剑。",
           "py": "Zhànzhù! Zài wǎng qián yí bù, wǒ jiù chū jiàn.",
           "ko": "멈춰! 한 발짝만 더 오면 검을 뽑겠다.",
-          "note": "再…就…: 조금 더 ~하면 바로 …한다."
+          "note": "再…就…: 조금 더 ~하면 바로 …한다.",
+          "image": "assets/chapter-005-1.jpg"
         },
         {
           "zh": "姑娘，我们不是来抢东西的。",
           "py": "Gūniang, wǒmen bú shì lái qiǎng dōngxi de.",
           "ko": "낭자, 우리는 물건을 빼앗으러 온 게 아니오.",
-          "note": "不是…的: 의도를 부정."
+          "note": "不是…的: 의도를 부정.",
+          "image": "assets/chapter-005-2.jpg"
         },
         {
           "zh": "那你们为什么带着他的剑？",
           "py": "Nà nǐmen wèishénme dàizhe tā de jiàn?",
           "ko": "그렇다면 왜 그의 검을 가지고 있지?",
-          "note": "带着: 가지고 있는 상태."
+          "note": "带着: 가지고 있는 상태.",
+          "image": "assets/chapter-005-3.jpg"
         },
         {
           "zh": "你认识我师父？",
           "py": "Nǐ rènshi wǒ shīfu?",
           "ko": "내 사부를 아시오?",
-          "note": "认识: 사람을 알다."
+          "note": "认识: 사람을 알다.",
+          "image": "assets/chapter-005-4.jpg"
         },
         {
           "zh": "我认识的，不是你的师父，而是杀我姐姐的人。",
           "py": "Wǒ rènshi de, bú shì nǐ de shīfu, ér shì shā wǒ jiějie de rén.",
           "ko": "내가 아는 사람은 네 사부가 아니라 내 언니를 죽인 자다.",
-          "note": "不是…而是…: ~가 아니라 ~이다."
+          "note": "不是…而是…: ~가 아니라 ~이다.",
+          "image": "assets/chapter-005-5.jpg"
         }
       ],
       "words": [
