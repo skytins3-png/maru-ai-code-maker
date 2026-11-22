@@ -1,6 +1,6 @@
 {
   "series": "江湖风云录",
-  "updated": "2026-11-21",
+  "updated": "2026-11-22",
   "episodes": [
     {
       "id": "001",
@@ -1555,31 +1555,36 @@
           "zh": "二十年前，青云门一夜之间消失了。",
           "py": "Èrshí nián qián, Qīngyún Mén yí yè zhī jiān xiāoshī le.",
           "ko": "이십 년 전, 청운문은 하룻밤 사이 사라졌어.",
-          "note": "一夜之间: 하룻밤 사이에."
+          "note": "一夜之间: 하룻밤 사이에.",
+          "image": "assets/chapter-006-1.jpg"
         },
         {
           "zh": "我听说，是你师父背叛了同门。",
           "py": "Wǒ tīngshuō, shì nǐ shīfu bèipàn le tóngmén.",
           "ko": "네 사부가 동문을 배신했다고 들었어.",
-          "note": "听说: 듣자 하니, 전해 듣다."
+          "note": "听说: 듣자 하니, 전해 듣다.",
+          "image": "assets/chapter-006-2.jpg"
         },
         {
           "zh": "听说的事，未必是真的。",
           "py": "Tīngshuō de shì, wèibì shì zhēn de.",
           "ko": "소문이 꼭 사실인 건 아니지.",
-          "note": "未必: 반드시 ~인 것은 아니다."
+          "note": "未必: 반드시 ~인 것은 아니다.",
+          "image": "assets/chapter-006-3.jpg"
         },
         {
           "zh": "可我亲眼看见了那场大火。",
           "py": "Kě wǒ qīnyǎn kànjiàn le nà chǎng dàhuǒ.",
           "ko": "하지만 나는 그 큰불을 내 눈으로 봤어.",
-          "note": "亲眼: 직접 자기 눈으로."
+          "note": "亲眼: 직접 자기 눈으로.",
+          "image": "assets/chapter-006-4.jpg"
         },
         {
           "zh": "你那时候才多大？",
           "py": "Nǐ nà shíhou cái duō dà?",
           "ko": "넌 그때 몇 살이나 됐다고?",
-          "note": "才: 겨우, 고작."
+          "note": "才: 겨우, 고작.",
+          "image": "assets/chapter-006-5.jpg"
         }
       ],
       "words": [
