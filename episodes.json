@@ -1,6 +1,6 @@
 {
   "series": "江湖风云录",
-  "updated": "2026-11-22",
+  "updated": "2026-11-23",
   "episodes": [
     {
       "id": "001",
@@ -1887,31 +1887,36 @@
           "zh": "这是我师父的字迹。",
           "py": "Zhè shì wǒ shīfu de zìjì.",
           "ko": "이건 내 사부의 필체야.",
-          "note": "的: 소유·수식 관계."
+          "note": "的: 소유·수식 관계.",
+          "image": "assets/chapter-007-1.jpg"
         },
         {
           "zh": "不可能！他三年前就死了。",
           "py": "Bù kěnéng! Tā sān nián qián jiù sǐ le.",
           "ko": "말도 안 돼! 그는 삼 년 전에 이미 죽었어.",
-          "note": "就: 예상보다 일찍/이미."
+          "note": "就: 예상보다 일찍/이미.",
+          "image": "assets/chapter-007-2.jpg"
         },
         {
           "zh": "如果他还活着，为什么不来找我？",
           "py": "Rúguǒ tā hái huózhe, wèishénme bù lái zhǎo wǒ?",
           "ko": "그가 살아 있다면 왜 날 찾지 않았지?",
-          "note": "如果…: ~라면."
+          "note": "如果…: ~라면.",
+          "image": "assets/chapter-007-3.jpg"
         },
         {
           "zh": "信上写着，七星峰见。",
           "py": "Xìn shàng xiězhe, Qīxīng Fēng jiàn.",
           "ko": "편지에는 '칠성봉에서 만나자'고 적혀 있어.",
-          "note": "写着: 적혀 있는 상태."
+          "note": "写着: 적혀 있는 상태.",
+          "image": "assets/chapter-007-4.jpg"
         },
         {
           "zh": "除非他想引我们上钩。",
           "py": "Chúfēi tā xiǎng yǐn wǒmen shànggōu.",
           "ko": "그가 우릴 함정에 끌어들이려는 게 아니라면.",
-          "note": "除非: ~하지 않는 한."
+          "note": "除非: ~하지 않는 한.",
+          "image": "assets/chapter-007-5.jpg"
         }
       ],
       "words": [
