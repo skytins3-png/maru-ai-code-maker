@@ -1,6 +1,6 @@
 {
   "series": "江湖风云录",
-  "updated": "2026-11-23",
+  "updated": "2026-11-24",
   "episodes": [
     {
       "id": "001",
@@ -2177,31 +2177,36 @@
           "zh": "既然来了，就别躲了。",
           "py": "Jìrán lái le, jiù bié duǒ le.",
           "ko": "여기까지 왔으면 더는 숨지 마라.",
-          "note": "既然…就…: ~했으니 …하라."
+          "note": "既然…就…: ~했으니 …하라.",
+          "image": "assets/chapter-008-1.jpg"
         },
         {
           "zh": "你究竟是谁？",
           "py": "Nǐ jiūjìng shì shéi?",
           "ko": "넌 도대체 누구냐?",
-          "note": "究竟: 도대체, 대체."
+          "note": "究竟: 도대체, 대체.",
+          "image": "assets/chapter-008-2.jpg"
         },
         {
           "zh": "你学的剑法，本来就是我的。",
           "py": "Nǐ xué de jiànfǎ, běnlái jiù shì wǒ de.",
           "ko": "네가 배운 검법은 원래 내 것이다.",
-          "note": "本来: 원래."
+          "note": "本来: 원래.",
+          "image": "assets/chapter-008-3.jpg"
         },
         {
           "zh": "难道你就是当年的叛徒？",
           "py": "Nándào nǐ jiù shì dāngnián de pàntú?",
           "ko": "설마 당신이 그때의 배신자란 말이오?",
-          "note": "难道: 반문·의외를 나타냄."
+          "note": "难道: 반문·의외를 나타냄.",
+          "image": "assets/chapter-008-4.jpg"
         },
         {
           "zh": "摘下面具，让我看看你的脸！",
           "py": "Zhāi xià miànjù, ràng wǒ kànkan nǐ de liǎn!",
           "ko": "가면을 벗어라. 얼굴을 보여 줘!",
-          "note": "让 + 사람 + 동사: ~하게 하다."
+          "note": "让 + 사람 + 동사: ~하게 하다.",
+          "image": "assets/chapter-008-5.jpg"
         }
       ],
       "words": [
